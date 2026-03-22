@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>План дня</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --bg-op:0.75; --accent:#2E75B6; --r:18px; --rsm:10px; --pw:300px; --cw:286px; --ww:720px; }
+body { background:transparent; font-family:'Segoe UI','SF Pro Display',-apple-system,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; color:#fff; overflow:hidden; }
+.shell { display:flex; gap:0; align-items:flex-start; position:relative; }
+
+/* ── Shift/Gym mode ── */
+body.mode-gym   { --accent:#2E75B6; }
+body.mode-shift { --accent:#E67E22; }
+body.mode-shift .widget { background:rgba(18,10,4,var(--bg-op)) !important; border-color:rgba(230,126,34,.2) !important; }
+body.mode-shift .cal-panel { background:rgba(22,12,4,.92) !important; }
+.mode-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; padding:3px 10px; border-radius:12px; border:0.5px solid; transition:all .4s ease; cursor:default; }
+.mode-badge.gym   { background:rgba(46,117,182,.15); border-color:rgba(46,117,182,.38); color:#85B7EB; }
+.mode-badge.shift { background:rgba(230,126,34,.15); border-color:rgba(230,126,34,.38); color:#EF9F27; }
+.countdown { font-size:10px; color:rgba(255,255,255,.32); padding:2px 8px; background:rgba(255,255,255,.05); border-radius:10px; border:0.5px solid rgba(255,255,255,.09); white-space:nowrap; }
+
+/* ── Calendar shift markers ── */
+.cd.shift-start { background:rgba(230,126,34,.22); border:0.5px solid rgba(230,126,34,.5); color:#EF9F27; font-weight:600; }
+.cd.shift-end   { background:rgba(192,57,43,.18); border:0.5px solid rgba(192,57,43,.45); color:#E74C3C; font-weight:600; }
+.cd.in-shift    { background:rgba(230,126,34,.07); }
+.cd.in-shift .cd-num { color:rgba(230,126,34,.8); }
+.cd-marker { font-size:7px; font-weight:700; letter-spacing:.02em; margin-top:1px; line-height:1; }
+.cd-num { font-size:12px; }
+
+/* ── Calendar LEFT ── */
+.cal-panel { width:0; overflow:hidden; background:rgba(10,10,22,.9); border:0.5px solid rgba(255,255,255,.10); border-right:none; border-radius:var(--r) 0 0 var(--r); backdrop-filter:blur(24px); transition:width .35s cubic-bezier(.4,0,.2,1); }
+.cal-panel.open { width:var(--cw); }
+.cal-inner { width:var(--cw); padding:20px 18px; opacity:0; transform:translateX(10px); transition:opacity .25s ease .1s,transform .25s ease .1s; pointer-events:none; }
+.cal-panel.open .cal-inner { opacity:1; transform:translateX(0); pointer-events:all; }
+.cal-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.cal-title { font-size:14px; font-weight:600; color:rgba(255,255,255,.85); }
+.cnav { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.12); color:rgba(255,255,255,.5); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.cnav:hover { background:rgba(255,255,255,.15); color:#fff; }
+.cal-wds { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:6px; }
+.cal-wd { font-size:9px; font-weight:600; color:rgba(255,255,255,.25); text-align:center; padding:3px 0; }
+.cal-days { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.cd { aspect-ratio:1; border-radius:7px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:12px; cursor:pointer; transition:all .15s; position:relative; color:rgba(255,255,255,.5); }
+.cd:hover { background:rgba(255,255,255,.08); color:#fff; }
+.cd.om { color:rgba(255,255,255,.16); }
+.cd.td { color:#fff; font-weight:600; }
+.cd.td::after { content:''; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%; background:var(--accent); }
+.cd.gym { color:#5DCAA5; font-weight:600; }
+.cd.gym::before { content:''; position:absolute; top:3px; width:4px; height:4px; border-radius:50%; background:#1D9E75; opacity:.8; }
+.cd.sel { background:rgba(46,117,182,.32); color:#fff; border:0.5px solid rgba(46,117,182,.65); }
+.cal-leg { margin-top:16px; display:flex; flex-direction:column; gap:6px; }
+.cal-lr { display:flex; align-items:center; gap:8px; font-size:10px; color:rgba(255,255,255,.38); }
+.cal-ld { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* ── Widget ── */
+.widget { width:var(--ww); background:rgba(8,8,18,var(--bg-op)); border:0.5px solid rgba(255,255,255,.10); border-radius:var(--r); overflow:hidden; backdrop-filter:blur(24px); animation:fadeIn .4s ease; position:relative; z-index:1; transition:border-radius .3s ease; }
+.widget.cal-open { border-radius:0 var(--r) var(--r) 0; }
+.widget.rp-open { border-radius:var(--r) 0 0 var(--r); }
+.widget.cal-open.rp-open { border-radius:0; }
+.widget-body { padding:22px 26px; }
+
+/* ── Settings bar ── */
+.sbar { max-height:0; overflow:hidden; background:rgba(0,0,0,.4); border-bottom:0.5px solid rgba(255,255,255,.07); transition:max-height .35s cubic-bezier(.4,0,.2,1); }
+.sbar.open { max-height:260px; }
+.sbar-inner { padding:12px 26px 16px; display:grid; grid-template-columns:repeat(4,1fr); gap:10px 16px; align-items:start; }
+.sg-lbl { font-size:9px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+.sg-row { display:flex; gap:5px; flex-wrap:wrap; }
+.sgb { font-size:11px; padding:3px 10px; border-radius:8px; border:0.5px solid rgba(255,255,255,.11); background:rgba(255,255,255,.05); color:rgba(255,255,255,.5); cursor:pointer; transition:all .15s; font-family:inherit; }
+.sgb:hover { background:rgba(255,255,255,.1); color:#fff; }
+.sgb.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.tdot { width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all .15s; flex-shrink:0; }
+.tdot.on { border-color:#fff; transform:scale(1.18); }
+.sslider-row { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+.sslider-lbl { font-size:9px; color:rgba(255,255,255,.35); min-width:36px; }
+.sslider { flex:1; cursor:pointer; height:3px; }
+.sslider-val { font-size:9px; color:rgba(255,255,255,.3); min-width:26px; text-align:right; }
+
+/* ── Animations ── */
+@keyframes fadeIn  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideL  { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+@keyframes slideR  { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:translateX(0)} }
+@keyframes popIn   { 0%{opacity:0;transform:scale(.93) translateY(10px)} 60%{transform:scale(1.015) translateY(0)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+@keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+
+.canim   { animation:slideL .28s cubic-bezier(.4,0,.2,1); }
+.canim-r { animation:slideR .28s cubic-bezier(.4,0,.2,1); }
+.pop-in  { animation:popIn  .32s cubic-bezier(.4,0,.2,1); }
+
+.widget       { transition:border-radius .3s ease, background-color .5s ease; }
+.mode-badge   { transition:all .45s ease; }
+.pc           { transition:background .2s ease, border-color .2s ease; }
+.mode-badge.gym,.mode-badge.shift { animation:popIn .3s ease; }
+
+/* ── Progress modal ── */
+.prog-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.prog-modal.open { opacity:1; pointer-events:all; }
+.prog-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.65); backdrop-filter:blur(10px); }
+.prog-box { position:relative; z-index:1; width:var(--ww); max-height:88vh; background:rgba(8,10,22,.98); border:0.5px solid rgba(255,255,255,.12); border-radius:var(--r); overflow:hidden; display:flex; flex-direction:column; transform:scale(.95) translateY(12px); transition:transform .28s cubic-bezier(.4,0,.2,1); }
+.prog-modal.open .prog-box { transform:scale(1) translateY(0); }
+.prog-hdr { padding:18px 22px 14px; border-bottom:0.5px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.prog-title { font-size:16px; font-weight:600; color:#fff; }
+.prog-body { overflow-y:auto; padding:18px 22px; flex:1; }
+.prog-body::-webkit-scrollbar { width:3px; }
+.prog-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,.14); border-radius:2px; }
+.prog-day-tabs { display:flex; gap:4px; margin-bottom:14px; }
+.prog-dtab { font-size:10px; padding:3px 12px; border-radius:7px; border:0.5px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:rgba(255,255,255,.4); cursor:pointer; font-family:inherit; transition:all .15s; }
+.prog-dtab:hover { background:rgba(255,255,255,.08); }
+.prog-dtab.on { border-color:var(--pd-col); background:rgba(0,0,0,.2); color:var(--pd-col); }
+.prog-ex-list { display:flex; flex-direction:column; gap:10px; }
+.prog-ex { background:rgba(255,255,255,.04); border:0.5px solid rgba(255,255,255,.07); border-radius:10px; padding:12px 14px; animation:fadeIn .2s ease; }
+.prog-ex-hdr { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+.prog-ex-name { font-size:13px; font-weight:500; color:#fff; flex:1; }
+.prog-ex-schema { font-size:10px; color:rgba(255,255,255,.3); }
+.prog-sets-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.prog-set-col { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.prog-set-lbl { font-size:9px; color:rgba(255,255,255,.3); text-transform:uppercase; letter-spacing:.05em; }
+.prog-inp { width:100%; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.14); border-radius:7px; padding:6px 4px; text-align:center; color:#fff; font-size:13px; font-weight:500; font-family:inherit; outline:none; transition:border-color .15s; }
+.prog-inp:focus { border-color:var(--accent); background:rgba(255,255,255,.1); }
+.prog-inp::placeholder { color:rgba(255,255,255,.18); font-size:11px; }
+.prog-best { font-size:9px; color:rgba(29,158,117,.75); text-align:center; min-height:12px; margin-top:2px; }
+.prog-footer { display:flex; align-items:center; gap:12px; margin-top:16px; padding-top:14px; border-top:0.5px solid rgba(255,255,255,.07); }
+.prog-save { padding:8px 22px; border-radius:10px; background:var(--accent); border:none; color:#fff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:opacity .15s; }
+.prog-save:hover { opacity:.85; }
+.prog-date { font-size:11px; color:rgba(255,255,255,.3); }
+.prog-hist-lbl { font-size:9px; font-weight:600; color:rgba(255,255,255,.27); text-transform:uppercase; letter-spacing:.1em; margin:16px 0 8px; }
+.prog-hist-item { display:flex; gap:10px; padding:7px 10px; background:rgba(255,255,255,.03); border-radius:8px; margin-bottom:5px; border:0.5px solid rgba(255,255,255,.06); font-size:11px; }
+.prog-hist-date { color:rgba(255,255,255,.38); min-width:80px; flex-shrink:0; }
+.prog-hist-sets { display:flex; gap:10px; flex-wrap:wrap; color:rgba(255,255,255,.62); }
+
+/* ── Editor bar ── */
+.ebar { max-height:0; overflow:hidden; background:rgba(4,4,16,.95); border-bottom:0.5px solid rgba(255,255,255,.08); transition:max-height .4s cubic-bezier(.4,0,.2,1); }
+.ebar.open { max-height:460px; overflow-y:auto; }
+.ebar-inner { padding:16px 26px 18px; }
+.ed-tabs { display:flex; gap:4px; margin-bottom:14px; border-bottom:0.5px solid rgba(255,255,255,.08); padding-bottom:10px; }
+.ed-tab { font-size:11px; padding:4px 14px; border-radius:8px; border:0.5px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:rgba(255,255,255,.45); cursor:pointer; transition:all .15s; font-family:inherit; }
+.ed-tab:hover { background:rgba(255,255,255,.08); color:#fff; }
+.ed-tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.ed-sec { display:none; }
+.ed-sec.on { display:block; }
+.ed-dtabs { display:flex; gap:4px; margin-bottom:12px; flex-wrap:wrap; }
+.ed-dt { font-size:10px; padding:3px 10px; border-radius:7px; border:0.5px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:rgba(255,255,255,.4); cursor:pointer; transition:all .15s; font-family:inherit; }
+.ed-dt:hover { background:rgba(255,255,255,.08); }
+.ed-dt.on { border-color:rgba(46,117,182,.6); background:rgba(46,117,182,.2); color:#85B7EB; }
+.ed-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.ed-row { display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.04); border:0.5px solid rgba(255,255,255,.07); border-radius:8px; padding:7px 10px; }
+.ed-inp { flex:1; background:transparent; border:none; outline:none; color:rgba(255,255,255,.8); font-size:12px; font-family:inherit; min-width:0; }
+.ed-inp::placeholder { color:rgba(255,255,255,.25); }
+.ed-inp-sm { width:90px; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.1); border-radius:6px; padding:3px 7px; outline:none; color:rgba(255,255,255,.7); font-size:11px; font-family:inherit; text-align:center; }
+.ed-del { width:22px; height:22px; border-radius:6px; flex-shrink:0; background:rgba(192,57,43,.12); border:0.5px solid rgba(192,57,43,.25); color:rgba(240,95,80,.7); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.ed-del:hover { background:rgba(192,57,43,.25); color:#F06050; }
+.ed-add { display:flex; align-items:center; gap:6px; width:100%; font-size:11px; padding:6px 10px; border-radius:8px; border:0.5px dashed rgba(255,255,255,.15); background:transparent; color:rgba(255,255,255,.35); cursor:pointer; transition:all .15s; font-family:inherit; }
+.ed-add:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.6); border-color:rgba(255,255,255,.25); }
+.ed-save { margin-top:12px; padding:8px 20px; border-radius:10px; background:var(--accent); border:none; color:#fff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:opacity .15s; }
+.ed-save:hover { opacity:.85; }
+.ed-note { font-size:10px; color:rgba(255,255,255,.25); margin-top:6px; }
+
+/* ── TRAINING SIDE PANEL (LEFT, no scroll) ── */
+.train-modal {
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  z-index:100;
+  opacity:0; pointer-events:none;
+  transition:opacity .3s ease;
+}
+.train-modal.open { opacity:1; pointer-events:all; }
+.tm-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(6px); }
+.tm-shell {
+  position:relative; z-index:1;
+  display:flex; gap:0; align-items:flex-start;
+  transform:translateX(-24px);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+}
+.train-modal.open .tm-shell { transform:translateX(0); }
+
+/* Left panel — exercise list navigation */
+.tm-nav {
+  width:200px; flex-shrink:0;
+  background:rgba(6,8,20,.98);
+  border:0.5px solid rgba(255,255,255,.1);
+  border-right:none;
+  border-radius:var(--r) 0 0 var(--r);
+  padding:18px 14px;
+  display:flex; flex-direction:column; gap:4px;
+  max-height:82vh;
+}
+.tm-nav-title { font-size:10px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
+.tm-nav-item {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 10px; border-radius:8px;
+  font-size:11px; color:rgba(255,255,255,.5);
+  cursor:pointer; transition:all .15s;
+  border:0.5px solid transparent;
+}
+.tm-nav-item:hover { background:rgba(255,255,255,.06); color:rgba(255,255,255,.8); }
+.tm-nav-item.on { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.1); color:#fff; }
+.tm-nav-num { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0; }
+.tm-nav-warn { font-size:11px; flex-shrink:0; }
+
+/* Right panel — exercise detail */
+.tm-box {
+  width:520px; flex-shrink:0;
+  background:rgba(8,10,22,.98);
+  border:0.5px solid rgba(255,255,255,.1);
+  border-radius:0 var(--r) var(--r) 0;
+  padding:20px 22px;
+  max-height:82vh;
+  display:flex; flex-direction:column;
+}
+.tm-header {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  margin-bottom:14px; flex-shrink:0;
+}
+.tm-title  { font-size:16px; font-weight:600; color:#fff; margin-bottom:3px; line-height:1.3; }
+.tm-schema { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:2px; }
+.tm-subtitle { font-size:11px; color:rgba(255,255,255,.35); }
+.tm-close {
+  width:26px; height:26px; border-radius:50%; flex-shrink:0; margin-left:10px;
+  background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.12);
+  color:rgba(255,255,255,.5); font-size:13px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:all .15s;
+}
+.tm-close:hover { background:rgba(255,255,255,.15); color:#fff; }
+
+/* Exercise detail content — NO SCROLL, compact grid */
+.tm-content { flex:1; display:flex; flex-direction:column; gap:10px; min-height:0; }
+.tm-muscles { display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0; }
+.tm-muscle  { font-size:10px; padding:2px 8px; border-radius:7px; background:rgba(255,255,255,.07); color:rgba(255,255,255,.55); }
+.tm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; min-height:0; }
+.tm-block-lbl { font-size:9px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+.tm-tech { font-size:11px; color:rgba(255,255,255,.62); line-height:1.7; }
+.tm-tech li { margin-left:12px; margin-bottom:2px; }
+.tm-sets { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin-bottom:8px; }
+.tm-set-box { background:rgba(255,255,255,.05); border-radius:7px; padding:7px 4px; text-align:center; border:0.5px solid rgba(255,255,255,.07); }
+.tm-set-val { font-size:13px; font-weight:600; color:rgba(255,255,255,.82); }
+.tm-set-lbl { font-size:9px; color:rgba(255,255,255,.28); margin-top:1px; text-transform:uppercase; }
+
+/* Warn box — compact, no scary label */
+.tm-warn { background:rgba(230,126,34,.08); border:0.5px solid rgba(230,126,34,.25); border-radius:7px; padding:7px 10px; font-size:11px; color:rgba(250,200,100,.8); line-height:1.55; flex-shrink:0; }
+/* Tip */
+.tm-tip { background:rgba(201,162,39,.07); border:0.5px solid rgba(201,162,39,.18); border-radius:7px; padding:7px 10px; font-size:11px; color:rgba(250,228,160,.75); line-height:1.55; flex-shrink:0; }
+/* Alts */
+.tm-alts { display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0; }
+.tm-alt  { font-size:10px; padding:2px 9px; border-radius:8px; background:rgba(255,255,255,.06); border:0.5px solid rgba(255,255,255,.09); color:rgba(255,255,255,.48); cursor:pointer; transition:all .15s; }
+.tm-alt:hover { background:rgba(255,255,255,.12); color:rgba(255,255,255,.8); }
+
+/* Nav prev/next at bottom */
+.tm-nav-arrows { display:flex; gap:6px; margin-top:auto; padding-top:12px; flex-shrink:0; }
+.tm-arr {
+  flex:1; padding:6px; border-radius:8px;
+  background:rgba(255,255,255,.05); border:0.5px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.4); font-size:12px; cursor:pointer; font-family:inherit;
+  transition:all .15s; text-align:center;
+}
+.tm-arr:hover { background:rgba(255,255,255,.1); color:#fff; }
+.tm-arr:disabled { opacity:.2; cursor:default; }
+
+
+/* ── Animations ── */
+@keyframes fadeIn  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideIn { from{opacity:0;transform:translateX(-5px)} to{opacity:1;transform:translateX(0)} }
+@keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+.canim { animation:slideIn .25s ease; }
+
+/* ── Header ── */
+.hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.hdr-l { display:flex; align-items:center; gap:10px; }
+.date-btn { font-size:24px; font-weight:600; color:#fff; cursor:pointer; background:none; border:none; font-family:inherit; padding:3px 8px; margin:-3px -8px; border-radius:8px; transition:background .15s; }
+.date-btn:hover { background:rgba(255,255,255,.07); }
+.date-btn.on { background:rgba(46,117,182,.2); color:#85B7EB; }
+.hdr-wd { font-size:12px; color:rgba(255,255,255,.35); font-weight:300; }
+.hdr-r { display:flex; align-items:center; gap:6px; }
+.ldot { width:6px; height:6px; border-radius:50%; background:#1D9E75; animation:pulse 2s infinite; }
+.htime { font-size:18px; font-weight:300; color:rgba(255,255,255,.4); font-variant-numeric:tabular-nums; }
+.nav-row { display:flex; gap:4px; }
+.nb { font-size:11px; padding:3px 11px; border-radius:12px; border:0.5px solid rgba(255,255,255,.11); background:rgba(255,255,255,.04); color:rgba(255,255,255,.45); cursor:pointer; transition:all .15s; font-family:inherit; }
+.nb:hover { background:rgba(255,255,255,.1); color:#fff; }
+.nb.on { background:rgba(46,117,182,.25); border-color:rgba(46,117,182,.5); color:#85B7EB; }
+.icon-btn { width:26px; height:26px; border-radius:8px; background:rgba(255,255,255,.05); border:0.5px solid rgba(255,255,255,.1); color:rgba(255,255,255,.4); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.icon-btn:hover { background:rgba(255,255,255,.1); color:#fff; }
+.icon-btn.on { background:rgba(46,117,182,.2); border-color:rgba(46,117,182,.4); color:#85B7EB; }
+.edit-btn { background:rgba(201,162,39,.1); border-color:rgba(201,162,39,.3); color:rgba(250,220,100,.6); font-size:10px; width:auto; padding:0 10px; }
+.edit-btn:hover { background:rgba(201,162,39,.2); color:rgba(250,220,100,.9); }
+.edit-btn.on { background:rgba(201,162,39,.25); border-color:rgba(201,162,39,.55); color:#FAC775; }
+
+/* ── Week strip ── */
+.wstrip { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:13px; }
+.dp { border-radius:8px; padding:6px 3px; text-align:center; border:0.5px solid rgba(255,255,255,.06); background:rgba(255,255,255,.02); cursor:pointer; transition:all .15s; }
+.dp:hover { background:rgba(255,255,255,.07); }
+.dp.gym { border-color:rgba(29,158,117,.4); background:rgba(29,158,117,.04); }
+.dp.cur { background:rgba(46,117,182,.22); border-color:rgba(46,117,182,.6); }
+.dp .dn { font-size:9px; color:rgba(255,255,255,.3); font-weight:500; text-transform:uppercase; }
+.dp .dd { font-size:13px; font-weight:600; color:rgba(255,255,255,.78); margin:2px 0; }
+.dp .dt { font-size:9px; color:#5DCAA5; font-weight:600; min-height:11px; }
+.dp.cur .dn,.dp.cur .dd { color:#fff; }
+.dp.cur .dt { color:#85B7EB; }
+.div { height:0.5px; background:rgba(255,255,255,.07); margin:0 0 13px; }
+
+/* ── Main grid ── */
+.mgrid { display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-bottom:10px; }
+.pc { background:rgba(255,255,255,.04); border:0.5px solid rgba(255,255,255,.07); border-radius:var(--rsm); padding:12px 14px; }
+.slbl { font-size:9px; font-weight:600; color:rgba(255,255,255,.27); text-transform:uppercase; letter-spacing:.1em; margin-bottom:8px; }
+.tpanel { position:relative; padding-left:15px !important; cursor:pointer; transition:background .15s; }
+.tpanel:hover { background:rgba(255,255,255,.07); }
+.tpanel::before { content:''; position:absolute; left:0; top:0; width:3px; height:100%; background:var(--tc,#2E75B6); border-radius:2px 0 0 2px; }
+.tpanel-hint { font-size:9px; color:rgba(255,255,255,.3); margin-top:6px; display:flex; align-items:center; gap:4px; }
+.tname { font-size:13px; font-weight:600; color:#fff; margin-bottom:4px; }
+.mtags { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+.mtag { font-size:10px; padding:2px 7px; border-radius:7px; background:rgba(255,255,255,.07); color:rgba(255,255,255,.5); }
+.exrow { display:flex; align-items:center; gap:6px; padding:4px 0; border-bottom:0.5px solid rgba(255,255,255,.05); font-size:11.5px; color:rgba(255,255,255,.6); transition:color .15s; }
+.exrow:last-child { border-bottom:none; }
+.exrow:hover { color:rgba(255,255,255,.88); }
+.edot { width:3px; height:3px; border-radius:50%; background:var(--tc,#2E75B6); flex-shrink:0; }
+.esets { margin-left:auto; font-size:10px; color:rgba(255,255,255,.28); }
+.trow { display:flex; gap:7px; align-items:flex-start; margin-bottom:6px; }
+.trow:last-child { margin-bottom:0; }
+.ti { font-size:13px; flex-shrink:0; }
+.tt { font-size:11.5px; color:rgba(255,255,255,.6); line-height:1.55; }
+.rp-block { text-align:center; padding:18px 14px !important; }
+.rtitle { font-size:14px; font-weight:600; color:rgba(255,255,255,.7); margin-bottom:4px; }
+.rsub { font-size:11px; color:rgba(255,255,255,.3); line-height:1.6; }
+.mfull { grid-column:1/-1; }
+.mgrd { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.mcard { background:rgba(255,255,255,.04); border:0.5px solid rgba(255,255,255,.07); border-radius:8px; padding:9px 11px; cursor:pointer; transition:all .18s; position:relative; overflow:hidden; }
+.mcard::after { content:'›'; position:absolute; right:9px; top:50%; transform:translateY(-50%); font-size:15px; color:rgba(255,255,255,.13); transition:all .18s; }
+.mcard:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
+.mcard:hover::after { color:rgba(255,255,255,.35); right:7px; }
+.mcard.active { border-color:rgba(46,117,182,.6); background:rgba(46,117,182,.1); }
+.mtime { font-size:9px; font-weight:600; color:rgba(255,255,255,.27); text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; }
+.mfood { font-size:11.5px; color:rgba(255,255,255,.68); line-height:1.4; margin-bottom:4px; padding-right:13px; }
+.mkcal { font-size:10px; color:rgba(255,255,255,.22); }
+.macrow { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; margin-top:9px; }
+.mac { background:rgba(255,255,255,.04); border-radius:8px; padding:7px; text-align:center; border:0.5px solid rgba(255,255,255,.06); }
+.mv { font-size:13px; font-weight:600; color:rgba(255,255,255,.82); }
+.ml { font-size:9px; color:rgba(255,255,255,.27); margin-top:1px; text-transform:uppercase; }
+.grow { display:flex; gap:5px; flex-wrap:wrap; }
+.gchip { display:flex; align-items:center; gap:5px; font-size:10px; padding:4px 10px; border-radius:20px; border:0.5px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:rgba(255,255,255,.5); cursor:pointer; transition:all .15s; user-select:none; }
+.gchip:hover { background:rgba(255,255,255,.08); }
+.gchip.done { background:rgba(29,158,117,.18); border-color:rgba(29,158,117,.4); color:#5DCAA5; }
+.shop-bar { max-height:0; overflow:hidden; transition:max-height .3s cubic-bezier(.4,0,.2,1); border-top:0.5px solid rgba(255,255,255,.07); }
+.shop-bar.open { max-height:100px; }
+.shop-inner { padding:10px 0 2px; }
+.shop-title { font-size:9px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.1em; margin-bottom:7px; }
+.shop-items { display:flex; flex-wrap:wrap; gap:5px; }
+.shop-tag { font-size:10px; padding:3px 9px; border-radius:8px; background:rgba(201,162,39,.1); border:0.5px solid rgba(201,162,39,.25); color:rgba(250,238,218,.7); }
+.rpanel { width:0; overflow:hidden; background:rgba(14,14,28,.92); border:0.5px solid rgba(255,255,255,.10); border-left:none; border-radius:0 var(--r) var(--r) 0; backdrop-filter:blur(24px); transition:width .35s cubic-bezier(.4,0,.2,1); }
+.rpanel.open { width:var(--pw); }
+.rp-inner { width:var(--pw); padding:18px 16px; opacity:0; transform:translateX(-10px); transition:opacity .25s ease .1s,transform .25s ease .1s; pointer-events:none; }
+.rpanel.open .rp-inner { opacity:1; transform:translateX(0); pointer-events:all; }
+.rp-close { position:absolute; top:12px; right:12px; width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.12); color:rgba(255,255,255,.45); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.rp-close:hover { background:rgba(255,255,255,.14); color:#fff; }
+.rp-mname { font-size:14px; font-weight:600; color:#fff; margin-bottom:2px; padding-right:26px; }
+.rp-mtime { font-size:10px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; margin-bottom:11px; }
+.bjurow { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; margin-bottom:11px; }
+.bjub { background:rgba(255,255,255,.06); border-radius:8px; padding:6px 4px; text-align:center; border:0.5px solid rgba(255,255,255,.07); }
+.bjuv { font-size:13px; font-weight:600; color:rgba(255,255,255,.85); }
+.bjul { font-size:9px; color:rgba(255,255,255,.28); margin-top:1px; text-transform:uppercase; }
+.psec { margin-bottom:10px; }
+.psl { font-size:9px; font-weight:600; color:rgba(255,255,255,.27); text-transform:uppercase; letter-spacing:.1em; margin-bottom:5px; }
+.ptxt { font-size:11.5px; color:rgba(255,255,255,.62); line-height:1.65; }
+.ptxt li { margin-left:13px; margin-bottom:3px; }
+.palts { display:flex; flex-wrap:wrap; gap:4px; }
+.altag { font-size:10px; padding:3px 8px; border-radius:7px; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.09); color:rgba(255,255,255,.5); }
+.ptip { background:rgba(201,162,39,.1); border:0.5px solid rgba(201,162,39,.25); border-radius:7px; padding:8px 10px; font-size:11px; color:rgba(250,238,218,.78); line-height:1.6; }
+.prep-time { font-size:10px; color:rgba(255,255,255,.28); margin-top:5px; }
+
+/* ── Warmup / Cooldown tabs ── */
+.tm-tabs { display:flex; gap:4px; margin-bottom:12px; padding-bottom:10px; border-bottom:0.5px solid rgba(255,255,255,.08); flex-wrap:nowrap; }
+.tm-tab { font-size:11px; padding:3px 10px; border-radius:6px; border:0.5px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:rgba(255,255,255,.45); cursor:pointer; font-family:inherit; transition:all .15s; white-space:nowrap; }
+.tm-tab:hover { background:rgba(255,255,255,.08); color:#fff; }
+.tm-tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.wc-list { display:flex; flex-direction:column; gap:7px; }
+.wc-item { display:flex; gap:10px; padding:8px 10px; background:rgba(255,255,255,.04); border-radius:8px; border:0.5px solid rgba(255,255,255,.07); }
+.wc-num { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0; color:rgba(255,255,255,.6); background:rgba(255,255,255,.1); }
+.wc-warm .wc-num { background:rgba(241,196,15,.15); color:#F1C40F; }
+.wc-cool .wc-num { background:rgba(46,117,182,.15); color:#85B7EB; }
+.wc-body { flex:1; }
+.wc-name { font-size:12px; font-weight:500; color:rgba(255,255,255,.82); margin-bottom:2px; }
+.wc-desc { font-size:11px; color:rgba(255,255,255,.45); line-height:1.5; }
+.wc-note { margin-top:10px; padding:9px 12px; border-radius:8px; font-size:11px; line-height:1.6; }
+
+/* ── Themes / Sizes ── */
+body.t-blue   { --accent:#2E75B6; }
+body.t-purple { --accent:#7B5EA7; }
+body.t-green  { --accent:#1D7A5F; }
+body.t-red    { --accent:#C0392B; }
+body.sz-s { --ww:580px; --pw:260px; --cw:250px; }
+body.sz-m { --ww:720px; --pw:300px; --cw:286px; }
+body.sz-l { --ww:860px; --pw:340px; --cw:310px; }
+body.font-dm { font-family:'Trebuchet MS','Gill Sans',sans-serif; }
+body.font-outfit { font-family:'Century Gothic','Avenir',sans-serif; }
+
+/* ── Tasks panel (replaces priority panel) ── */
+.task-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:0.5px solid rgba(255,255,255,.05); cursor:pointer; transition:background .12s; border-radius:6px; }
+.task-item:last-child { border-bottom:none; }
+.task-item:hover { background:rgba(255,255,255,.05); }
+.task-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.task-dot.urgent { background:#E74C3C; }
+.task-dot.today  { background:#E67E22; }
+.task-dot.soon   { background:#F1C40F; }
+.task-dot.later  { background:rgba(255,255,255,.3); }
+.task-info { flex:1; min-width:0; }
+.task-name { font-size:11.5px; color:rgba(255,255,255,.78); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.task-meta { font-size:9px; color:rgba(255,255,255,.35); margin-top:2px; }
+.task-time-badge { font-size:9px; padding:1px 6px; border-radius:6px; background:rgba(255,255,255,.07); color:rgba(255,255,255,.45); white-space:nowrap; flex-shrink:0; }
+.tasks-more { font-size:10px; color:rgba(255,255,255,.3); text-align:center; padding:6px 0 0; cursor:pointer; }
+.tasks-more:hover { color:rgba(255,255,255,.6); }
+
+/* ── Tasks modal (full list) ── */
+.tasks-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.tasks-modal.open { opacity:1; pointer-events:all; }
+.tasks-modal .tm-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(8px); }
+.tm-tasks-box { position:relative; z-index:1; width:560px; max-height:82vh; background:rgba(8,10,22,.97); border:0.5px solid rgba(255,255,255,.12); border-radius:var(--r); overflow:hidden; display:flex; flex-direction:column; transform:scale(.96) translateY(12px); transition:transform .25s cubic-bezier(.4,0,.2,1); }
+.tasks-modal.open .tm-tasks-box { transform:scale(1) translateY(0); }
+.tm-tasks-hdr { padding:18px 22px 14px; border-bottom:0.5px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.tm-tasks-title { font-size:16px; font-weight:600; color:#fff; }
+.tm-tasks-body { overflow-y:auto; padding:16px 22px; flex:1; }
+.tm-tasks-body::-webkit-scrollbar { width:3px; }
+.tm-tasks-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:2px; }
+.task-full { background:rgba(255,255,255,.04); border:0.5px solid rgba(255,255,255,.08); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+.task-full-hdr { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.task-full-name { font-size:13px; font-weight:600; color:#fff; flex:1; }
+.task-full-time { font-size:10px; color:rgba(255,255,255,.4); background:rgba(255,255,255,.07); padding:2px 8px; border-radius:8px; }
+.task-full-date { font-size:10px; color:rgba(255,255,255,.35); margin-bottom:6px; }
+.task-full-desc { font-size:11.5px; color:rgba(255,255,255,.6); line-height:1.6; }
+.task-del { width:20px; height:20px; border-radius:50%; background:rgba(192,57,43,.12); border:0.5px solid rgba(192,57,43,.25); color:rgba(240,95,80,.6); font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.task-del:hover { background:rgba(192,57,43,.25); color:#F06050; }
+.task-group-label { font-size:9px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.1em; margin:12px 0 6px; }
+
+/* ── Checklist modal ── */
+.checklist-modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.checklist-modal.open { opacity:1; pointer-events:all; }
+.checklist-modal .tm-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(8px); }
+.cl-box { position:relative; z-index:1; width:560px; max-height:82vh; background:rgba(8,10,22,.97); border:0.5px solid rgba(255,255,255,.12); border-radius:var(--r); overflow:hidden; display:flex; flex-direction:column; transform:scale(.96) translateY(12px); transition:transform .25s cubic-bezier(.4,0,.2,1); }
+.checklist-modal.open .cl-box { transform:scale(1) translateY(0); }
+.cl-hdr { padding:18px 22px 14px; border-bottom:0.5px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.cl-title { font-size:16px; font-weight:600; color:#fff; }
+.cl-body { overflow-y:auto; padding:18px 22px; flex:1; display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.cl-section { }
+.cl-sec-label { font-size:9px; font-weight:600; color:rgba(255,255,255,.28); text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; }
+.cl-input-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.cl-input-label { font-size:11px; color:rgba(255,255,255,.55); min-width:90px; }
+.cl-inp { flex:1; background:rgba(255,255,255,.07); border:0.5px solid rgba(255,255,255,.12); border-radius:8px; padding:6px 10px; outline:none; color:#fff; font-size:12px; font-family:inherit; }
+.cl-inp:focus { border-color:rgba(46,117,182,.5); }
+.cl-inp::placeholder { color:rgba(255,255,255,.25); }
+.cl-save { margin-top:4px; padding:8px 20px; border-radius:10px; background:var(--accent); border:none; color:#fff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+.cl-history { grid-column:1/-1; }
+.cl-hist-row { display:flex; align-items:center; gap:8px; padding:7px 10px; background:rgba(255,255,255,.04); border-radius:8px; margin-bottom:5px; border:0.5px solid rgba(255,255,255,.07); }
+.cl-hist-date { font-size:10px; color:rgba(255,255,255,.4); min-width:72px; }
+.cl-hist-vals { display:flex; gap:10px; flex:1; flex-wrap:wrap; }
+.cl-hist-val { font-size:11px; color:rgba(255,255,255,.7); }
+.cl-hist-val span { color:rgba(255,255,255,.4); font-size:10px; }
+
+/* ── Checklist button ── */
+.cl-btn { background:rgba(29,158,117,.12); border-color:rgba(29,158,117,.3); color:rgba(93,202,165,.7); font-size:10px; width:auto; padding:0 10px; }
+.cl-btn:hover { background:rgba(29,158,117,.2); color:#5DCAA5; }
+.cl-btn.on { background:rgba(29,158,117,.25); border-color:rgba(29,158,117,.5); color:#5DCAA5; }
+
+/* ── Calendar task dot ── */
+.cd-tasks { display:flex; gap:2px; justify-content:center; margin-top:1px; }
+.cd-tdot { width:4px; height:4px; border-radius:50%; background:rgba(201,162,39,.8); flex-shrink:0; }
+</style>
+</head>
+<body class="t-blue sz-m">
+
+<!-- TASKS MODAL -->
+<div class="tasks-modal" id="tasks-modal">
+  <div class="tm-backdrop" onclick="closeTasksModal()"></div>
+  <div class="tm-tasks-box">
+    <div class="tm-tasks-hdr">
+      <span class="tm-tasks-title">📋 Все задачи</span>
+      <button class="tm-close" onclick="closeTasksModal()">&#10005;</button>
+    </div>
+    <div class="tm-tasks-body" id="tasks-modal-body"></div>
+  </div>
+</div>
+
+<!-- CHECKLIST MODAL -->
+<div class="checklist-modal" id="checklist-modal">
+  <div class="tm-backdrop" onclick="closeChecklist()"></div>
+  <div class="cl-box">
+    <div class="cl-hdr">
+      <span class="cl-title">📊 Дневные показатели</span>
+      <button class="tm-close" onclick="closeChecklist()">&#10005;</button>
+    </div>
+    <div class="cl-body">
+      <div class="cl-section">
+        <div class="cl-sec-label">Сегодня</div>
+        <div class="cl-input-row"><span class="cl-input-label">Вес (кг)</span><input class="cl-inp" type="number" step="0.1" placeholder="71.5" id="cl-weight"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Грудь (см)</span><input class="cl-inp" type="number" step="0.5" placeholder="95" id="cl-chest"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Талия (см)</span><input class="cl-inp" type="number" step="0.5" placeholder="78" id="cl-waist"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Рука (см)</span><input class="cl-inp" type="number" step="0.5" placeholder="35" id="cl-arm"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Калории</span><input class="cl-inp" type="number" placeholder="2450" id="cl-kcal"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Сон (часов)</span><input class="cl-inp" type="number" step="0.5" placeholder="7.5" id="cl-sleep"></div>
+        <div class="cl-input-row"><span class="cl-input-label">Самочувствие</span><input class="cl-inp" type="number" min="1" max="5" placeholder="4" id="cl-mood"></div>
+        <button class="cl-save" onclick="saveChecklist()">Сохранить</button>
+      </div>
+      <div class="cl-section cl-history">
+        <div class="cl-sec-label">История замеров</div>
+        <div id="cl-history-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="train-modal" id="train-modal">
+  <div class="tm-backdrop" onclick="closeTrainModal()"></div>
+  <div class="tm-shell">
+    <div class="tm-nav">
+      <div class="tm-nav-title" id="tm-nav-title"></div>
+      <div id="tm-nav-list"></div>
+    </div>
+    <div class="tm-box">
+      <div class="tm-header">
+        <div>
+          <div class="tm-title"   id="tm-title"></div>
+          <div class="tm-schema"  id="tm-schema"></div>
+          <div class="tm-subtitle" id="tm-subtitle"></div>
+        </div>
+        <button class="tm-close" onclick="closeTrainModal()">&#10005;</button>
+      </div>
+      <div class="tm-content" id="tm-content"></div>
+      <div class="tm-nav-arrows">
+        <button class="tm-arr" id="tm-prev" onclick="tmNav(-1)">&#8592; предыдущее</button>
+        <button class="tm-arr" id="tm-next" onclick="tmNav(1)">следующее &#8594;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROGRESS MODAL -->
+<div class="prog-modal" id="prog-modal">
+  <div class="prog-backdrop" onclick="closeProgModal()"></div>
+  <div class="prog-box pop-in">
+    <div class="prog-hdr">
+      <span class="prog-title">📈 Прогресс тренировок</span>
+      <button class="tm-close" onclick="closeProgModal()">&#10005;</button>
+    </div>
+    <div class="prog-body">
+      <div class="prog-day-tabs" id="prog-day-tabs"></div>
+      <div class="prog-ex-list" id="prog-ex-list"></div>
+      <div class="prog-footer">
+        <button class="prog-save" onclick="saveProgress()">Сохранить</button>
+        <span class="prog-date" id="prog-date"></span>
+      </div>
+      <div class="prog-hist-lbl">История</div>
+      <div id="prog-hist"></div>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- Calendar LEFT -->
+  <div class="cal-panel" id="cal-panel">
+    <div class="cal-inner">
+      <div class="cal-hdr">
+        <button class="cnav" onclick="calSh(-1)">&#8592;</button>
+        <span class="cal-title" id="cal-title"></span>
+        <button class="cnav" onclick="calSh(1)">&#8594;</button>
+      </div>
+      <div class="cal-wds"><div class="cal-wd">Пн</div><div class="cal-wd">Вт</div><div class="cal-wd">Ср</div><div class="cal-wd">Чт</div><div class="cal-wd">Пт</div><div class="cal-wd">Сб</div><div class="cal-wd">Вс</div></div>
+      <div class="cal-days" id="cal-days"></div>
+      <div class="cal-leg">
+        <div class="cal-lr"><div class="cal-ld" style="background:#1D9E75"></div>тренировочный день (зал)</div>
+        <div class="cal-lr"><div class="cal-ld" style="background:#E67E22"></div>начало вахты</div>
+        <div class="cal-lr"><div class="cal-ld" style="background:#C0392B"></div>конец вахты</div>
+        <div class="cal-lr"><div class="cal-ld" style="background:var(--accent)"></div>выбранный день</div>
+        <div class="cal-lr"><div class="cal-ld" style="background:rgba(255,255,255,.4)"></div>сегодня</div>
+        <div style="margin-top:10px;font-size:9px;color:rgba(255,255,255,.3);line-height:1.7">
+          <b style="color:rgba(255,255,255,.5)">Долгое нажатие</b> на день:<br>
+          → начало / конец вахты<br>
+          → добавить задачу
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Widget -->
+  <div class="widget" id="widget">
+    <div class="sbar" id="sbar">
+      <div class="sbar-inner">
+        <!-- Row 1 -->
+        <div><div class="sg-lbl">размер</div><div class="sg-row">
+          <button class="sgb" onclick="setSz('s',this)">S</button>
+          <button class="sgb on" onclick="setSz('m',this)">M</button>
+          <button class="sgb" onclick="setSz('l',this)">L</button>
+        </div></div>
+        <div><div class="sg-lbl">шрифт</div><div class="sg-row">
+          <button class="sgb on" onclick="setFnt('',this)">Segoe</button>
+          <button class="sgb" onclick="setFnt('font-dm',this)" style="font-family:'Trebuchet MS'">Trebuchet</button>
+          <button class="sgb" onclick="setFnt('font-outfit',this)" style="font-family:'Century Gothic'">Century</button>
+        </div></div>
+        <div><div class="sg-lbl">тема</div><div class="sg-row">
+          <div class="tdot on" style="background:#2E75B6" onclick="setTh('blue',this)"></div>
+          <div class="tdot" style="background:#7B5EA7" onclick="setTh('purple',this)"></div>
+          <div class="tdot" style="background:#1D7A5F" onclick="setTh('green',this)"></div>
+          <div class="tdot" style="background:#C0392B" onclick="setTh('red',this)"></div>
+        </div></div>
+        <div><div class="sg-lbl">прозрачность фона</div>
+          <div class="sslider-row"><input type="range" class="sslider" min="10" max="95" value="75" oninput="setOp(this.value)"><span class="sslider-val" id="opval">75%</span></div>
+        </div>
+        <!-- Row 2 -->
+        <div><div class="sg-lbl">оттенок фона</div>
+          <div class="sslider-row"><span class="sslider-lbl">тёплый</span><input type="range" class="sslider" min="0" max="100" value="50" oninput="setBgHue(this.value)"><span class="sslider-lbl" style="text-align:right">холодный</span></div>
+        </div>
+        <div><div class="sg-lbl">цвет текста</div>
+          <div class="sslider-row"><span class="sslider-lbl" style="color:#7EC8E3">голубой</span><input type="range" class="sslider" min="0" max="100" value="50" oninput="setTextHue(this.value)"><span class="sslider-lbl" style="color:#F5B7B1;text-align:right">тёплый</span></div>
+        </div>
+        <div><div class="sg-lbl">яркость текста</div>
+          <div class="sslider-row"><span class="sslider-lbl">темнее</span><input type="range" class="sslider" min="50" max="100" value="85" oninput="setTextBri(this.value)"><span class="sslider-lbl" style="text-align:right">ярче</span></div>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="sgb" onclick="resetAppearance()" style="width:100%;justify-content:center">↺ сбросить</button>
+        </div>
+      </div>
+    </div>
+    <div class="ebar" id="ebar">
+      <div class="ebar-inner">
+        <div class="ed-tabs">
+          <button class="ed-tab on" onclick="edTab('ex',this)">Упражнения</button>
+          <button class="ed-tab" onclick="edTab('meals',this)">Питание</button>
+        </div>
+        <div class="ed-sec on" id="ed-ex">
+          <div class="ed-dtabs" id="ed-day-tabs"></div>
+          <div class="ed-list" id="ed-ex-list"></div>
+          <button class="ed-add" onclick="addEx()">+ добавить упражнение</button>
+          <div><button class="ed-save" onclick="saveEx()">Сохранить</button><span class="ed-note"> изменения применятся сразу</span></div>
+        </div>
+        <div class="ed-sec" id="ed-meals">
+          <div class="ed-dtabs">
+            <button class="ed-dt on" onclick="edMT('train',this)">Дни тренировок</button>
+            <button class="ed-dt" onclick="edMT('rest',this)">Дни отдыха</button>
+          </div>
+          <div class="ed-list" id="ed-meal-list"></div>
+          <button class="ed-add" onclick="addMeal()">+ добавить приём пищи</button>
+          <div><button class="ed-save" onclick="saveMeals()">Сохранить</button><span class="ed-note"> изменения применятся сразу</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="widget-body">
+      <div class="hdr">
+        <div class="hdr-l">
+          <button class="date-btn" id="date-btn" onclick="togCal()"></button>
+          <span class="hdr-wd" id="hdr-wd"></span>
+          <span class="mode-badge gym" id="mode-badge">🏋 Зал</span>
+          <span class="countdown" id="countdown"></span>
+        </div>
+        <div class="hdr-r">
+          <div class="ldot"></div>
+          <span class="htime" id="htime"></span>
+          <div class="nav-row">
+            <button class="nb" onclick="shift(-1)">&#8592;</button>
+            <button class="nb on" id="btn-td" onclick="shift(0)">сегодня</button>
+            <button class="nb" onclick="shift(1)">&#8594;</button>
+          </div>
+          <button class="icon-btn" id="sbtn" onclick="togSettings()" title="Настройки">&#9881;</button>
+          <button class="icon-btn edit-btn" id="ebtn" onclick="togEditor()">&#9998; Изменить</button>
+          <button class="icon-btn" id="progbtn" onclick="openProgModal()" title="Прогресс тренировок" style="background:rgba(46,117,182,.1);border-color:rgba(46,117,182,.25);color:rgba(133,183,235,.65)">&#128200;</button>
+          <button class="icon-btn cl-btn" id="clbtn" onclick="openChecklist()" title="Показатели дня">&#128202;</button>
+          <button class="icon-btn" id="shopbtn" onclick="togShop()" title="На завтра">&#128722;</button>
+        </div>
+      </div>
+      <div class="wstrip" id="strip"></div>
+      <div class="div"></div>
+      <div class="mgrid" id="mgrid"></div>
+      <div class="slbl" style="margin-bottom:7px">отметить выполнение</div>
+      <div class="grow" id="grow"></div>
+      <div class="shop-bar" id="shopbar">
+        <div class="shop-inner">
+          <div class="shop-title">&#128722; нужно на завтра</div>
+          <div class="shop-items" id="shopitems"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="rpanel" id="rpanel">
+    <div class="rp-inner">
+      <button class="rp-close" onclick="closeRP()">&#10005;</button>
+      <div id="rpcontent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const START  = new Date(2026,2,22);
+const DAYS   = ['вс','пн','вт','ср','чт','пт','сб'];
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MSHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+const GYM    = [1,3,5];
+
+// ── TRAINING DATA ─────────────────────────────────────────────
+let TRAINS = [
+  { name:'День 1 — ноги + тяга', short:'Д1', color:'#2E75B6',
+    muscles:['Квадрицепс','Широчайшие','Бицепс бедра','Бицепс'],
+    exercises:[
+      { n:'Присед со штангой / гоблет-присед', s:'4×8–10', warn:false,
+        worked:['Квадрицепс','Ягодицы','Бицепс бедра'],
+        schema:{sets:4,reps:'8–10',rest:'2–3 мин'},
+        tech:['Стопы чуть шире плеч, носки развёрнуты на 30°','Колени строго над носками — не сводить внутрь','Спина прямая, грудь вперёд, взгляд перед собой','Опускаться до параллели с полом или ниже'],
+        tip:'Начни с гоблет-приседом с гантелью — безопаснее для поясницы после перерыва.',
+        alts:['Жим ногами','Выпады с гантелями','Приседания в Смите','Болгарские выпады']},
+      { n:'Жим ногами в тренажёре', s:'3×10–12', warn:false,
+        worked:['Квадрицепс','Ягодицы'],
+        schema:{sets:3,reps:'10–12',rest:'2 мин'},
+        tech:['Стопы на ширине плеч в центре платформы','Колени не сводить и не разводить — нейтрально','Не выпрямляй ноги полностью в верхней точке — небольшой сгиб','Медленный негатив 2–3 сек'],
+        tip:'Следи за симметрией — толкай равномерно обеими ногами.',
+        alts:['Гакк-присед','Разгибания ног','Выпады в Смите','Шаги на платформу']},
+      { n:'Румынская тяга', s:'3×10–12', warn:false,
+        worked:['Бицепс бедра','Ягодицы','Разгибатели спины'],
+        schema:{sets:3,reps:'10–12',rest:'2 мин'},
+        tech:['Штанга ближе к телу, практически касается ног','Наклон вперёд за счёт отведения таза назад','Спина прямая — нейтральный позвоночник всё время','Чувствуй растяжку бицепса бедра в нижней точке'],
+        tip:'Не сгибай колени как в обычной тяге — это не приседание. Движение идёт из таза.',
+        alts:['Сгибания ног лёжа','Наклоны со штангой','Тяга на прямых ногах','Good morning']},
+      { n:'Тяга гантели одной рукой', s:'4×10–12', warn:true,
+        worked:['Широчайшие','Ромбовидные','Бицепс (синергист)'],
+        schema:{sets:4,reps:'10–12',rest:'1.5–2 мин'},
+        tech:['Колено и рука на скамье — нейтральная спина','Тянуть локоть вверх и назад, а не просто вверх','В верхней точке — свести лопатку, задержать на 1 сек','Не скручивать корпус'],
+        warn_text:'Начинай всегда со слабой стороны. Количество повт. правой = количество повт. левой. Не добивай левую даже если можешь — так разрыв закроется.',
+        alts:['Тяга верхнего блока','Тяга горизонтального блока','Тяга Т-грифа','Подтягивания с резинкой']},
+      { n:'Тяга верхнего блока широким хватом', s:'3×10–12', warn:false,
+        worked:['Широчайшие','Круглые мышцы спины','Задние дельты'],
+        schema:{sets:3,reps:'10–12',rest:'1.5–2 мин'},
+        tech:['Хват чуть шире плеч','Тянуть к верхней части груди, не за голову','Локти вниз и назад — лопатки сводить в конце','Небольшое отклонение корпуса назад — нормально'],
+        tip:'Ключ — не руки тянут, а локти идут вниз к рёбрам. Чувствуй широчайшие.',
+        alts:['Подтягивания широким хватом','Тяга параллельными рукоятями','Пуловер гантелью','Тяга блока узким хватом']},
+      { n:'Бицепс гантелями поочерёдно', s:'3×10–12', warn:true,
+        worked:['Бицепс','Плечевая мышца'],
+        schema:{sets:3,reps:'10–12',rest:'1.5 мин'},
+        tech:['Стоя или сидя — без раскачки корпуса','Полная амплитуда: от полного разгибания до сжатия','Супинация кисти в верхней точке (ладонь вверх)','Локоть фиксирован у туловища'],
+        warn_text:'Начинай со слабой стороны. Слабая рука диктует повторения сильной. Поочерёдное выполнение позволяет видеть разницу в силе.',
+        alts:['Curl со штангой','Молотковый curl','Curl на скамье Скотта','Концентрированный curl']},
+    ],
+    tips:[{i:'🍚',t:'День ног — 320г углеводов.'},{i:'🧘',t:'PRI утром 10 мин.'},{i:'⚠',t:'Начинай тяги со слабой стороны.'}]
+  },
+  { name:'День 2 — жим + плечи', short:'Д2', color:'#1D9E75',
+    muscles:['Грудные','Передние дельты','Задние дельты','Трицепс'],
+    exercises:[
+      { n:'Жим гантелей лёжа', s:'4×8–10', warn:true,
+        worked:['Грудные (основные)','Передние дельты','Трицепс'],
+        schema:{sets:4,reps:'8–10',rest:'2–3 мин'},
+        tech:['Лопатки сведены и прижаты к скамье','Стопы на скамье или полу — поясница чуть отведена','Гантели в нижней точке — на уровне груди, локти 45°','Сводить гантели в верхней точке — пик сокращения'],
+        warn_text:'Гантели вместо штанги обязательно — каждая рука работает независимо. Начинай с правой (слабой). Правая рука диктует повторения левой.',
+        alts:['Жим штанги лёжа','Отжимания на брусьях','Жим в Смите','Кроссовер в блоке']},
+      { n:'Жим гантелей на наклоне 30°', s:'3×10–12', warn:true,
+        worked:['Верхняя грудь','Передние дельты','Трицепс'],
+        schema:{sets:3,reps:'10–12',rest:'2 мин'},
+        tech:['Угол скамьи 30° — не больше, иначе это упражнение на плечи','Та же техника что и горизонталь','Наклон акцентирует верхнюю часть грудных'],
+        warn_text:'Следи — если одна гантель уходит раньше другой, это слабая сторона. Слабая рука диктует повторения.',
+        alts:['Жим штанги на наклоне','Отжимания ноги на возвышении','Кабельные кроссоверы вверх','Жим гантелей узким хватом']},
+      { n:'Брусья', s:'3×8–12', warn:false,
+        worked:['Грудные','Трицепс','Передние дельты'],
+        schema:{sets:3,reps:'8–12',rest:'2–3 мин'},
+        tech:['Наклон корпуса вперёд 15–30° — акцент на грудь','Локти развёрнуты немного наружу','Опускаться до ощущения растяжки в груди','Добавляй вес на пояс когда 12 повторений легко'],
+        tip:'Одно из лучших упражнений для груди. Нагрузка прогрессирует через вес тела + навесной блин.',
+        alts:['Отжимания от пола','Жим узким хватом','Французский жим','Разгибания трицепса в блоке']},
+      { n:'Махи гантелями в стороны', s:'3×15–20', warn:false,
+        worked:['Средние дельты'],
+        schema:{sets:3,reps:'15–20',rest:'1–1.5 мин'},
+        tech:['Лёгкий вес — не более 15% от веса тела','Небольшой наклон вперёд, локоть чуть выше запястья','Подъём до уровня плеч, не выше','Медленный негатив 3 сек — это ключ'],
+        tip:'Средние дельты дают ширину плеч. Медленный негатив важнее веса.',
+        alts:['Тяга к подбородку','Махи в кроссовере','Жим Арнольда','Разведение в тренажёре']},
+      { n:'Обратные махи лёжа лицом вниз', s:'3×15–20', warn:false,
+        worked:['Задние дельты','Ромбовидные'],
+        schema:{sets:3,reps:'15–20',rest:'1–1.5 мин'},
+        tech:['Лечь лицом вниз на наклонную скамью 30°','Руки вниз, развести в стороны через дугу','Локти чуть согнуты, движение идёт от лопатки','Пик — свести лопатки'],
+        tip:'Задние дельты критичны при синдроме округлых плеч. Это твой приоритет.',
+        alts:['Face pull в блоке','Разведение в наклоне стоя','Обратная бабочка','Тяга резинки к лицу']},
+      { n:'Face pull в блоке', s:'3×15–20', warn:false,
+        worked:['Задние дельты','Ромбовидные','Внешние ротаторы плеча'],
+        schema:{sets:3,reps:'15–20',rest:'1 мин'},
+        tech:['Трос на уровне лица или чуть выше','Тянуть к ушам — локти выше запястей','Развести руки в стороны в конце движения','Пауза 1 сек в конечной точке'],
+        tip:'Лучшее упражнение для коррекции осанки. Делать в КАЖДУЮ тренировку без исключений.',
+        alts:['Тяга резинки к лицу','Обратные махи лёжа','W-разведение с гантелями','Тяга горизонтального блока с паузой']},
+    ],
+    tips:[{i:'🥩',t:'Белок в приоритете.'},{i:'🎯',t:'Face pull каждую тренировку.'},{i:'⚠',t:'Слабая рука диктует повторения.'}]
+  },
+  { name:'День 3 — ноги + кор', short:'Д3', color:'#E67E22',
+    muscles:['Ягодицы','Приводящие','Икры','Кор'],
+    exercises:[
+      { n:'Выпады с гантелями', s:'3×10–12/ногу', warn:false,
+        worked:['Квадрицепс','Ягодицы','Бицепс бедра'],
+        schema:{sets:3,reps:'10–12 на каждую ногу',rest:'2 мин'},
+        tech:['Шаг вперёд — колено передней ноги над носком','Заднее колено почти касается пола','Корпус прямо, не наклоняться вперёд','Отталкиваться пяткой передней ноги'],
+        tip:'Если колено уходит внутрь — это сигнал асимметрии таза. Начинай со слабой ноги.',
+        alts:['Болгарские выпады','Обратные выпады','Выпады в Смите','Шаги на возвышение']},
+      { n:'Ягодичный мостик со штангой', s:'4×12–15', warn:false,
+        worked:['Ягодицы','Бицепс бедра','Разгибатели спины'],
+        schema:{sets:4,reps:'12–15',rest:'1.5–2 мин'},
+        tech:['Плечи на скамье, штанга на бёдрах (подложи полотенце)','Пятки под коленями, стопы на ширине плеч','Подъём таза до прямой линии бедро-корпус','Пик — сжать ягодицы, держать 1–2 сек'],
+        tip:'Лучшее упражнение для ягодиц. Активирует ягодичные симметрично — помогает при смещении таза.',
+        alts:['Мостик без веса','Мостик с гантелью','Разгибание бедра в блоке','Гиперэкстензия']},
+      { n:'Подъём на носки стоя', s:'4×15–20', warn:false,
+        worked:['Икроножная мышца'],
+        schema:{sets:4,reps:'15–20',rest:'1 мин'},
+        tech:['Полная амплитуда: опускаться максимально вниз','Подъём на пике — задержка 1 сек','Медленный негатив 3 сек','Одной ногой для изоляции и проверки асимметрии'],
+        tip:'Икры растут от полной амплитуды и медленного темпа — не от большого веса.',
+        alts:['Подъём на носки сидя (камбаловидная)','Подъём на носки в жиме ногами','Прыжки на носках','Ходьба на носках']},
+      { n:'Планка', s:'3×45–60с', warn:false,
+        worked:['Поперечная мышца живота','Прямая мышца живота','Стабилизаторы позвоночника'],
+        schema:{sets:3,reps:'45–60 секунд',rest:'45 сек'},
+        tech:['Нейтральный таз — не поднимай и не опускай','Тело — прямая линия от головы до пят','Дыши равномерно, не задерживай дыхание','Смотреть в пол'],
+        tip:'Если бёдра заваливаются в одну сторону — это сигнал асимметрии таза.',
+        alts:['Планка на мяче','Планка с подъёмом руки','Динамическая планка','Hollow body hold']},
+      { n:'Боковая планка', s:'3×30–40с/сторону', warn:true,
+        worked:['Квадратная мышца поясницы','Косые мышцы живота','Средняя ягодица'],
+        schema:{sets:3,reps:'30–40 сек на сторону',rest:'45 сек'},
+        tech:['Опора на предплечье или кисть','Тело — прямая боковая линия','Таз не провисает','Верхняя рука вдоль тела или вверх'],
+        warn_text:'Если одна сторона заметно слабее — это зона смещения таза. Слабой стороне делать +1 дополнительный подход. Со временем разрыв закроется.',
+        alts:['Боковые скручивания','Star plank','Боковая планка с подъёмом ноги','Clamshell с резинкой']},
+      { n:'Dead bug (мёртвый жук)', s:'3×8–10/сторону', warn:false,
+        worked:['Поперечная мышца живота','Мультифидусы','Разгибатели бедра'],
+        schema:{sets:3,reps:'8–10 на каждую сторону',rest:'45 сек'},
+        tech:['Лёжа на спине — поясница прижата к полу ВСЁ время','Руки вверх, колени согнуты 90°','Медленно опустить противоположную руку и ногу','Поясница не должна отрываться — это критично'],
+        tip:'Лучшее упражнение для глубоких стабилизаторов при асимметрии таза.',
+        alts:['Велосипед лёжа','Bird dog','Подъём прямых ног лёжа','Скручивания с весом']},
+    ],
+    tips:[{i:'🍚',t:'Второй день ног — 320г углеводов.'},{i:'🧘',t:'PRI утром. Боковая планка: слабая сторона +1.'},{i:'📐',t:'Колено уходит? Сигнал асимметрии.'}]
+  },
+];
+
+// ── Warmup / Cooldown per training day ───────────────────────
+const WARMUPS = [
+  [ // День 1 — ноги + тяга
+    {n:'Велотренажёр / ходьба',d:'5 мин — пульс до 110–120 уд/мин'},
+    {n:'Вращения в тазобедренных суставах',d:'10 кругов каждой ногой стоя'},
+    {n:'Динамические выпады без веса',d:'10 раз каждой ногой'},
+    {n:'Воздушные приседания',d:'15 раз — полная амплитуда, медленно'},
+    {n:'Разгибания ног (лёгкий вес)',d:'2×15 — разминочные подходы'},
+    {n:'2 разминочных подхода на первое упражнение',d:'50% → 70% от рабочего веса × 8 повт.'},
+  ],
+  [ // День 2 — жим + плечи
+    {n:'Вращения руками вперёд и назад',d:'20 раз в каждую сторону'},
+    {n:'Раскрытие грудного отдела',d:'Руки в замок за спиной, грудь вперёд × 10'},
+    {n:'Лёгкие отжимания широким хватом',d:'2×10 — разогрев грудных'},
+    {n:'Вращения в локтях',d:'10 кругов в каждую сторону'},
+    {n:'Chin tuck + отведение плеч назад',d:'10 раз — активация ромбовидных'},
+    {n:'2 разминочных подхода на жим',d:'50% → 70% от рабочего веса × 8 повт.'},
+  ],
+  [ // День 3 — ноги + кор
+    {n:'Ходьба / лёгкий бег',d:'3–5 мин'},
+    {n:'Вращения в тазобедренных суставах',d:'10 кругов каждой ногой'},
+    {n:'Ягодичный мостик без веса',d:'2×20 — активация ягодиц'},
+    {n:'Кошка-корова на четвереньках',d:'10 циклов'},
+    {n:'Bird dog диагональный',d:'8 раз каждой стороной'},
+    {n:'Выпады без веса',d:'10 раз каждой ногой'},
+  ],
+];
+const COOLDOWNS = [
+  [ // День 1
+    {n:'Растяжка квадрицепса стоя',d:'30–40 сек каждой ногой'},
+    {n:'Растяжка бицепса бедра сидя',d:'30 сек — наклон к прямой ноге'},
+    {n:'Поза "голубя"',d:'40 сек каждой стороной'},
+    {n:'Растяжка широчайших сидя',d:'30 сек — рука вверх, наклон в сторону'},
+    {n:'Кошка-корова',d:'10 медленных циклов'},
+    {n:'Диафрагмальное дыхание',d:'5 глубоких вдохов'},
+  ],
+  [ // День 2
+    {n:'Растяжка грудных у дверного проёма',d:'30–40 сек каждой стороной'},
+    {n:'Растяжка трицепса (рука за голову)',d:'30 сек каждой рукой'},
+    {n:'Растяжка передних дельт',d:'30 сек каждой стороной'},
+    {n:'Раскрытие грудного отдела на валике',d:'60 сек — валик поперёк лопаток'},
+    {n:'Вис на турнике',d:'20–30 сек — декомпрессия'},
+    {n:'Chin tuck у стены',d:'3×10 сек — финальная коррекция осанки'},
+  ],
+  [ // День 3
+    {n:'Растяжка ягодиц лёжа (фигура 4)',d:'40 сек каждой стороной'},
+    {n:'Растяжка квадрицепса стоя',d:'30–40 сек каждой ногой'},
+    {n:'Растяжка бицепса бедра',d:'30 сек каждой стороной'},
+    {n:'Растяжка икр у стены',d:'30 сек — прямая нога'},
+    {n:'Поза ребёнка',d:'60 сек — поясница и грудной отдел'},
+    {n:'PRI 90/90 crossover',d:'3 цикла × 5 дыханий'},
+  ],
+];
+
+// ── Vakhta A/B full data ──────────────────────────────────────
+const VAKHTA = {
+  A: {
+    name:'Тренировка A — верх', color:'#2E75B6',
+    muscles:['Грудь','Спина','Плечи','Бицепс','Трицепс'],
+    warmup:[
+      {n:'Вращения руками',d:'20 раз в каждую сторону'},
+      {n:'Лёгкие отжимания',d:'2×10 — разогрев'},
+      {n:'Тяга резинки к лицу (лёгкая)',d:'2×15 — активация задних дельт'},
+      {n:'Chin tuck + отведение плеч',d:'10 раз'},
+    ],
+    exercises:[
+      {n:'Отжимания на стойках широко',s:'3×10–15',worked:['Грудные','Передние дельты','Трицепс'],schema:{sets:3,reps:'10–15',rest:'2 мин'},tech:['Стойки чуть шире плеч','Наклон корпуса вперёд 15–20°','Опускаться до растяжки в груди','Полное разгибание в верхней точке'],tip:'Ноги выше (на стул) — нагрузит верхнюю грудь.'},
+      {n:'Отжимания узким хватом',s:'3×10–12',worked:['Трицепс','Грудные'],schema:{sets:3,reps:'10–12',rest:'1.5 мин'},tech:['Стойки под плечами или уже','Локти вдоль тела','Корпус прямой'],tip:'Узкий хват = трицепс. Локти — ключ.'},
+      {n:'Тяга резинки в наклоне двумя руками',s:'4×12–15',worked:['Широчайшие','Трапеции','Ромбовидные'],schema:{sets:4,reps:'12–15',rest:'2 мин'},tech:['Резинка под ногами, наклон 45°','Тянуть локти вверх и назад','Свести лопатки в верхней точке','Негатив 2 сек'],tip:'Чем жёстче резинка — тем больше нагрузка.'},
+      {n:'Тяга резинки одной рукой ⚠',s:'3×12–15/ст',warn:true,worked:['Широчайшие','Ромбовидные'],schema:{sets:3,reps:'12–15 на сторону',rest:'1.5 мин'},tech:['Опора свободной рукой','Тянуть локоть вверх и назад','Лопатку свести в конце'],warn_text:'АСИММЕТРИЯ: начинай со слабой стороны (правая). Правая рука диктует повторения левой.'},
+      {n:'Разведение резинки в стороны',s:'3×15–20',worked:['Средние дельты'],schema:{sets:3,reps:'15–20',rest:'1 мин'},tech:['Резинка под ногами','Локоть чуть выше запястья','До уровня плеч','Негатив 3 сек'],tip:'Лёгкая резинка + медленный темп.'},
+      {n:'Тяга резинки к лицу (Face pull)',s:'3×15–20',worked:['Задние дельты','Ромбовидные'],schema:{sets:3,reps:'15–20',rest:'1 мин'},tech:['Резинка на уровне лица','Тянуть к ушам — локти выше запястей','Развести руки в стороны','Пауза 1 сек'],tip:'Делать КАЖДУЮ тренировку A. Коррекция осанки.'},
+      {n:'Curl резинки на бицепс ⚠',s:'3×12–15/ст',warn:true,worked:['Бицепс'],schema:{sets:3,reps:'12–15 на сторону',rest:'1 мин'},tech:['Резинка под ногой','Супинация в верхней точке','Локоть фиксирован','Негатив медленно'],warn_text:'АСИММЕТРИЯ: поочерёдно — слабая рука диктует повторения.'},
+      {n:'Обратные отжимания',s:'3×10–15',worked:['Трицепс'],schema:{sets:3,reps:'10–15',rest:'1 мин'},tech:['Руки позади на стуле/кровати','Ноги прямые = сложнее','До угла 90° в локтях','Толчок пятками рук'],tip:'Добить трицепс в конце.'},
+    ],
+    cooldown:[
+      {n:'Растяжка грудных у стены',d:'30–40 сек каждой стороной'},
+      {n:'Растяжка трицепса',d:'30 сек каждой рукой'},
+      {n:'Растяжка широчайших стоя',d:'30 сек — рука вверх, наклон'},
+      {n:'Chin tuck у стены',d:'3×10 сек'},
+      {n:'Диафрагмальное дыхание',d:'5 медленных вдохов'},
+    ],
+  },
+  B: {
+    name:'Тренировка B — низ', color:'#E67E22',
+    muscles:['Ягодицы','Квадрицепс','Бицепс бедра','Кор'],
+    warmup:[
+      {n:'Ходьба на месте',d:'3 мин'},
+      {n:'Вращения в тазобедренных суставах',d:'10 кругов каждой ногой'},
+      {n:'Ягодичный мостик без веса',d:'2×20'},
+      {n:'Кошка-корова',d:'10 циклов'},
+      {n:'Выпады без веса',d:'10 раз каждой ногой'},
+    ],
+    exercises:[
+      {n:'Приседания с резинкой',s:'4×15–20',worked:['Квадрицепс','Ягодицы'],schema:{sets:4,reps:'15–20',rest:'1.5 мин'},tech:['Резинка над коленями — не давай сводиться!','Стопы на ширине плеч, носки наружу','Спина прямая','Ниже параллели'],tip:'Резинка заставляет ягодицы работать как стабилизаторы.'},
+      {n:'Ягодичный мостик с резинкой',s:'4×15–20',worked:['Ягодицы','Бицепс бедра'],schema:{sets:4,reps:'15–20',rest:'1.5 мин'},tech:['Лёжа на спине, резинка над коленями','Пятки под коленями','Подъём таза — прямая линия','Сжать ягодицы на 1–2 сек'],tip:'Лучшее упражнение для ягодиц без штанги.'},
+      {n:'Ягодичный мостик на одной ноге ⚠',s:'3×12–15/ст',warn:true,worked:['Ягодицы (одностороннее)'],schema:{sets:3,reps:'12–15 на сторону',rest:'1.5 мин'},tech:['Одна нога согнута, другая прямая','Подъём таза за счёт рабочей ноги','Максимальное сжатие в верхней точке'],warn_text:'АСИММЕТРИЯ: начинай со слабой стороны. Разница в силе ягодиц = маркер смещения таза.'},
+      {n:'Выпады на месте',s:'3×12–15/ногу',worked:['Квадрицепс','Ягодицы'],schema:{sets:3,reps:'12–15 на ногу',rest:'2 мин'},tech:['Обратный выпад (шаг назад) — безопаснее для колена','Колено передней ноги над носком','Заднее колено почти к полу'],tip:'Начинай со слабой ноги.'},
+      {n:'Отведение ноги с резинкой',s:'3×15–20/ст',worked:['Средняя ягодица'],schema:{sets:3,reps:'15–20 на сторону',rest:'1 мин'},tech:['Лёжа на боку, резинка над коленями','Верхняя нога прямая','Поднимать вверх, не вперёд','Медленно опускать'],tip:'Средняя ягодица — стабилизатор таза.'},
+      {n:'Планка',s:'3×45–60с',worked:['Кор','Стабилизаторы'],schema:{sets:3,reps:'45–60 сек',rest:'45 сек'},tech:['Нейтральный таз','Тело — прямая линия','Дыши равномерно'],tip:'Бёдра заваливаются? Сигнал асимметрии.'},
+      {n:'Боковая планка ⚠',s:'3×30–40с/ст',warn:true,worked:['Квадратная мышца поясницы','Косые','Средняя ягодица'],schema:{sets:3,reps:'30–40 сек на сторону',rest:'45 сек'},tech:['Опора на предплечье','Тело — прямая боковая линия','Таз не провисает'],warn_text:'АСИММЕТРИЯ: слабой стороне +1 подход.'},
+      {n:'Dead bug',s:'3×8–10/ст',worked:['Поперечная мышца','Мультифидусы'],schema:{sets:3,reps:'8–10 на сторону',rest:'45 сек'},tech:['Поясница к полу ВСЁ время','Руки вверх, колени 90°','Медленно опустить противоположные руку и ногу'],tip:'На вахте поясница нагружена — Dead bug профилактика боли.'},
+      {n:'Superman лёжа',s:'3×12–15',worked:['Разгибатели спины','Ягодицы'],schema:{sets:3,reps:'12–15',rest:'45 сек'},tech:['Лёжа на животе, руки вперёд','Поднять руки и ноги одновременно','Пик — 2 сек','Медленно опустить'],tip:'Вся задняя цепь. На вахте — обязательно.'},
+    ],
+    cooldown:[
+      {n:'Растяжка ягодиц (фигура 4)',d:'40 сек каждой стороной'},
+      {n:'Растяжка квадрицепса стоя',d:'30–40 сек каждой ногой'},
+      {n:'Растяжка бицепса бедра',d:'30 сек каждой стороной'},
+      {n:'Растяжка икр у стены',d:'30 сек каждой ногой'},
+      {n:'Поза ребёнка',d:'60 сек'},
+      {n:'PRI 90/90 crossover',d:'3 цикла × 5 дыханий'},
+    ],
+  },
+};
+// Each day index 0–6 maps to Mon–Sun. GYM days = 0,2,4 (Mon,Wed,Fri)
+// MEAL_WEEK[dayOfWeek] — 7 different meal sets
+const MEAL_WEEK = {
+  1:[ // Пн — тренировка
+    {t:'Завтрак',time:'7:00',f:'Овсяная каша с яйцами пашот и бананом',k:580,p:38,fat:18,c:68,fib:6,recipe:['Овсянку залить кипятком 5 мин','Яйца пашот: кипяток+уксус, 3 мин','Банан нарезать, корица'],prep:'10 мин',tip:'Белок + углеводы — лучший старт.',alts:['Омлет + тост','Скрэмбл + авокадо тост','Блинчики из овсянки']},
+    {t:'Перекус 1',time:'10:30',f:'Творог с орехами и семенами чиа',k:270,p:28,fat:14,c:9,fib:5,recipe:['Творог 5% 200г','Чиа 10г замочить','Грецкие орехи 20г + корица'],prep:'2 мин',tip:'Омега-3 из чиа + медленный белок.',alts:['Греческий йогурт + гранола','Протеиновый батончик']},
+    {t:'Обед',time:'13:00',f:'Гречка с куриной грудкой и свежим салатом',k:700,p:55,fat:12,c:82,fib:9,recipe:['Гречка 1:2, 15 мин','Грудка: йогурт+паприка, запечь 25 мин 180°','Салат: огурец+помидор+петрушка+масло+лимон'],prep:'30 мин',tip:'Маринад из йогурта делает грудку сочной.',alts:['Плов с курицей','Гречотто с грибами','Фаршированный перец']},
+    {t:'Перекус 2',time:'16:30',f:'Тост с тунцом и авокадо',k:340,p:28,fat:16,c:24,fib:5,recipe:['Тунец консервированный — слить','Авокадо размять с лимоном','Намазать хлеб, сверху тунец+помидор+зелень'],prep:'5 мин',tip:'Авокадо + тунец = полезные жиры + белок.',alts:['Рисовые хлебцы + паштет','Яйцо + хлеб + помидор']},
+    {t:'Ужин',time:'19:00',f:'Запечённая форель с рисом и капустным салатом',k:560,p:48,fat:20,c:46,fib:7,recipe:['Форель в фольгу: лимон+укроп, 20 мин 190°','Рис отварить','Капуста+морковь+яблоко+масло+лимон'],prep:'25 мин',tip:'Форель в фольге — нулевые усилия, максимум вкуса.',alts:['Стейк семги + пюре','Рыбные котлеты + рис']},
+    {t:'Перед сном',time:'22:00',f:'Творог с чиа и бананом',k:175,p:21,fat:6,c:10,fib:4,recipe:['Творог 5% 100г','Чиа замоченные','Банан ¼ + корица'],prep:'2 мин',tip:'Казеин работает ночью.',alts:['Кефир 200мл','Казеин 25г']},
+  ],
+  3:[ // Ср — тренировка
+    {t:'Завтрак',time:'7:00',f:'Омлет с овощами и цельнозерновым тостом',k:450,p:28,fat:20,c:30,fib:4,recipe:['3 яйца + молоко + лук+помидор+перец','Жарить под крышкой 4 мин','Тост поджарить'],prep:'10 мин',tip:'Омлет с овощами — больше клетчатки.',alts:['Шакшука — 15 мин','Яйца Бенедикт — 20 мин']},
+    {t:'Перекус 1',time:'10:30',f:'Греческий йогурт с орехами и сухофруктами',k:240,p:18,fat:10,c:20,fib:2,recipe:['Греческий йогурт 2% 150г','Миндаль 15г + курага 2 шт'],prep:'2 мин',tip:'Быстро и питательно.',alts:['Творог + фрукт','Протеиновый батончик']},
+    {t:'Обед',time:'13:00',f:'Рис с говяжьим фаршем и томатным соусом',k:720,p:50,fat:18,c:80,fib:6,recipe:['Фарш обжарить с луком и чесноком','Добавить томаты, тушить 15 мин','Рис отварить'],prep:'30 мин',tip:'Говяжий фарш — железо и цинк для восстановления.',alts:['Спагетти болоньезе','Гречка с фаршем','Тако с фаршем']},
+    {t:'Перекус 2',time:'16:30',f:'Творог с ягодами и мёдом',k:280,p:24,fat:5,c:32,fib:3,recipe:['Творог 5% 200г','Замороженные ягоды разморозить','Чайная ложка мёда'],prep:'3 мин',tip:'Антиоксиданты из ягод + казеин.',alts:['Йогурт + банан','Протеин + яблоко']},
+    {t:'Ужин',time:'19:00',f:'Куриные бёдра запечённые с картофелем и зеленью',k:650,p:46,fat:22,c:58,fib:6,recipe:['Бёдра: горчица+чеснок+масло, 35 мин 190°','Картофель дольками запечь рядом','Зелень: укроп+петрушка нарезать и посыпать'],prep:'40 мин',tip:'Куриные бёдра сочнее грудки — иногда позволяй себе.',alts:['Курица с рисом','Бёдра с гречкой']},
+    {t:'Перед сном',time:'22:00',f:'Ряженка с сухофруктами',k:160,p:7,fat:4,c:24,fib:1,recipe:['Ряженка 200мл','Курага 3 шт или финики 2 шт'],prep:'1 мин',tip:'Лёгкий перекус перед сном.',alts:['Кефир 200мл','Творог 100г']},
+  ],
+  5:[ // Пт — тренировка
+    {t:'Завтрак',time:'7:00',f:'Геркулес с тёртым яблоком и орехами',k:520,p:18,fat:16,c:74,fib:8,recipe:['Геркулес залить горячим молоком 5 мин','Яблоко натереть на крупной тёрке','Грецкие орехи 20г + корица'],prep:'7 мин',tip:'Геркулес медленнее переваривается чем быстрые хлопья — энергия на весь день.',alts:['Овсяные блинчики','Каша с бананом и протеином']},
+    {t:'Перекус 1',time:'10:30',f:'Яйца вкрутую с авокадо и хлебцами',k:310,p:22,fat:18,c:16,fib:4,recipe:['3 яйца сварить вкрутую 10 мин','Авокадо нарезать ломтиками','Рисовые или гречневые хлебцы'],prep:'12 мин',tip:'Авокадо + яйца = полезные жиры + белок + сытость.',alts:['Творог + хлебцы','Омлет мини']},
+    {t:'Обед',time:'13:00',f:'Спагетти с тунцом и томатным соусом',k:680,p:48,fat:14,c:84,fib:6,recipe:['Спагетти отварить аль денте','Тунец консервированный — слить','Обжарить лук+чеснок, добавить томаты+тунец, 10 мин'],prep:'20 мин',tip:'Паста — отличный источник углеводов в день тренировки.',alts:['Паста с куриным фаршем','Макароны с форелью']},
+    {t:'Перекус 2',time:'16:30',f:'Протеиновый коктейль + банан',k:320,p:32,fat:4,c:40,fib:3,recipe:['Протеин 30г в 250мл молока','Банан рядом или в шейкер'],prep:'1 мин',tip:'За 1.5 часа до тренировки если вечером.',alts:['Творог + банан','Йогурт + мюсли']},
+    {t:'Ужин',time:'19:00',f:'Тунец с гречкой, тушёными овощами и зеленью',k:540,p:46,fat:14,c:52,fib:9,recipe:['Гречка отварить','Тунец запечённый или консервированный','Капуста+морковь+лук потушить 15 мин, добавить зелень в конце'],prep:'25 мин',tip:'Зелень в самом конце — сохранит витамины.',alts:['Рыбный суп','Паста с тунцом']},
+    {t:'Перед сном',time:'22:00',f:'Творог с корицей и семенами чиа',k:165,p:20,fat:6,c:8,fib:4,recipe:['Творог 5% 100г','Чиа 10г замоченные','Корица и ванилин по вкусу'],prep:'2 мин',tip:'Казеин + чиа = идеально на ночь.',alts:['Казеиновый протеин','Греческий йогурт']},
+  ],
+  2:[ // Вт — отдых
+    {t:'Завтрак',time:'8:00',f:'Яичница с помидорами и сыром на тосте',k:460,p:28,fat:24,c:28,fib:2,recipe:['Яичница из 3 яиц','Помидоры черри разрезать и добавить в конце','Посыпать тёртым сыром, тост рядом'],prep:'8 мин',tip:'Сыр добавляет кальций и жиры.',alts:['Омлет с сыром','Яйца пашот + хлеб']},
+    {t:'Обед',time:'13:00',f:'Куриная грудка с салатом из авокадо и зелени',k:510,p:44,fat:24,c:14,fib:9,recipe:['Грудку запечь: травы+чеснок+масло, 25 мин 180°','Руккола+авокадо+огурец+помидоры черри','Оливковое масло+лимон+укроп'],prep:'30 мин',tip:'Авокадо насыщает надолго.',alts:['Нисуаз с тунцом','Индейка с овощами']},
+    {t:'Перекус',time:'16:00',f:'Творог с йогуртом, мёдом и орехами',k:250,p:20,fat:11,c:18,fib:1,recipe:['Творог 5% 100г + греческий йогурт 100г','Мёд 1 ч.л.','Миндаль 15г'],prep:'2 мин',tip:'Сочетание казеина и белка йогурта.',alts:['Сырники из творога','Хумус + овощи']},
+    {t:'Ужин',time:'19:00',f:'Запечённая скумбрия с картофелем и укропом',k:580,p:44,fat:26,c:40,fib:4,recipe:['Скумбрия: лимон+укроп, завернуть в фольгу, 25 мин 190°','Картофель запечь дольками','Много укропа и зелёного лука'],prep:'30 мин',tip:'Скумбрия богата омега-3 — важно для восстановления.',alts:['Сельдь с картофелем','Форель + пюре']},
+  ],
+  4:[ // Чт — отдых
+    {t:'Завтрак',time:'8:00',f:'Сырники из творога с йогуртом и ягодами',k:420,p:24,fat:14,c:46,fib:3,recipe:['Творог 200г + яйцо + мука 2 ст.л. + соль','Жарить на среднем огне 3–4 мин с каждой стороны','Подавать с йогуртом и ягодами'],prep:'20 мин',tip:'Сырники — вкусный способ получить белок утром.',alts:['Панкейки на кефире','Творожная запеканка — 30 мин в духовке']},
+    {t:'Обед',time:'13:00',f:'Суп из чечевицы с курицей и зеленью',k:480,p:38,fat:12,c:48,fib:12,recipe:['Чечевица + куриное бедро варить 25 мин','Морковь+лук+чеснок обжарить, добавить к супу','Укроп+петрушка+лавровый лист'],prep:'35 мин',tip:'Чечевица — рекордсмен по клетчатке и белку.',alts:['Борщ с говядиной','Куриный суп с лапшой']},
+    {t:'Перекус',time:'16:00',f:'Хумус с овощными палочками и хлебцами',k:220,p:8,fat:10,c:24,fib:6,recipe:['Хумус готовый или домашний','Морковь, сельдерей, огурец нарезать палочками','Гречневые хлебцы'],prep:'5 мин',tip:'Клетчатка + белок из нута.',alts:['Творог + хлебцы','Авокадо + хлеб']},
+    {t:'Ужин',time:'19:00',f:'Паста с курицей и сливочным соусом',k:620,p:46,fat:20,c:64,fib:4,recipe:['Паста аль денте','Грудка: нарезать кубиками, обжарить','Сливки 10% + чеснок + пармезан — соус 5 мин'],prep:'25 мин',tip:'Иногда паста со сливочным соусом — это нормально.',alts:['Ризотто с курицей','Макароны с томатной пастой']},
+  ],
+  6:[ // Сб — отдых
+    {t:'Завтрак',time:'9:00',f:'Авокадо тост с яйцами пашот и микрозеленью',k:480,p:22,fat:28,c:34,fib:8,recipe:['Авокадо размять: лимон+соль+перец','Тост цельнозерновой','Яйца пашот сверху + микрозелень или руккола'],prep:'15 мин',tip:'Выходной — позволь себе чуть подольше позавтракать.',alts:['Яйца Бенедикт','Французский тост с йогуртом']},
+    {t:'Обед',time:'14:00',f:'Греческий салат с тунцом и яйцами',k:490,p:40,fat:26,c:18,fib:6,recipe:['Тунец консервированный','Огурец+помидор+перец+маслины+фета','Яйца вкрутую, оливковое масло+лимон'],prep:'10 мин',tip:'Лёгкий обед в выходной. Много овощей — хорошо.',alts:['Нисуаз классический','Салат с форелью и авокадо']},
+    {t:'Перекус',time:'17:00',f:'Творог с бананом, семенами льна и мёдом',k:260,p:18,fat:8,c:28,fib:4,recipe:['Творог 5% 150г','Банан нарезать','Семена льна 10г + мёд 1 ч.л.'],prep:'3 мин',tip:'Семена льна — омега-3 и клетчатка.',alts:['Смузи творог+банан+молоко','Йогурт + фрукты']},
+    {t:'Ужин',time:'20:00',f:'Стейк из форели с овощами гриль и рисом',k:600,p:50,fat:22,c:46,fib:6,recipe:['Форель смазать маслом+лимон+укроп','На сковороде гриль 3 мин с каждой стороны','Овощи гриль: кабачок+перец+помидор','Рис отварить'],prep:'25 мин',tip:'Выходной — повод приготовить что-то вкусное.',alts:['Семга на гриле','Форель в духовке']},
+  ],
+  0:[ // Вс — отдых
+    {t:'Завтрак',time:'9:00',f:'Блинчики на кефире с творогом и ягодами',k:520,p:24,fat:14,c:70,fib:3,recipe:['Тесто: кефир+яйца+мука+сахар+соль','Жарить тонкие блинчики','Начинка: творог 5%+сахар, ягоды сверху'],prep:'30 мин',tip:'Воскресный завтрак — сделай его вкусным.',alts:['Оладьи на кефире','Французские тосты']},
+    {t:'Обед',time:'14:00',f:'Куриный суп с домашней лапшой и зеленью',k:440,p:34,fat:12,c:44,fib:4,recipe:['Куриный бульон из бедра 40 мин','Домашняя лапша или макароны','Морковь+картошка+лук, зелень в конце'],prep:'50 мин',tip:'Воскресный обед — повод сварить настоящий суп.',alts:['Борщ','Уха из форели']},
+    {t:'Перекус',time:'17:00',f:'Орехи и сухофрукты с йогуртом',k:280,p:10,fat:16,c:26,fib:3,recipe:['Греческий йогурт 100г','Грецкие орехи 20г + миндаль 10г','Курага 3 шт + изюм 1 ст.л.'],prep:'2 мин',tip:'Орехи + сухофрукты — идеальный перекус выходного дня.',alts:['Мюсли с молоком','Творог с фруктами']},
+    {t:'Ужин',time:'19:00',f:'Запечённые куриные бёдра с гречкой и овощами',k:580,p:48,fat:20,c:52,fib:7,recipe:['Бёдра: горчица+соевый соус+чеснок, 35 мин 190°','Гречка отварить','Брокколи+морковь на пару или запечь рядом'],prep:'40 мин',tip:'Запечь рядом — один поддон, минимум грязной посуды.',alts:['Курица с рисом','Бёдра с картофелем']},
+  ],
+};
+
+const SHOP = {
+  train:['Куриная грудка 200г','Гречка / рис','Яйца 3–4 шт','Творог 200г','Бананы','Овсянка 100г','Огурец, помидор','Тунец консерва'],
+  rest: ['Куриная грудка 180г','Форель / тунец 200г','Яйца 3 шт','Творог 150г','Авокадо','Листья салата','Гречка','Зелень'],
+};
+
+// ── State ──────────────────────────────────────────────────────
+let offset=0,calOff=0,activeM=null,mtype='train';
+let calOpen=false,settOpen=false,edOpen=false,shopOpen=false;
+let goals={},edDay=0,edMealType_='train',edSection='ex';
+
+// ── SHIFT (вахта) state ────────────────────────────────────────
+let shifts = [];
+// tasks = [{id, date:'YYYY-MM-DD', time:'HH:MM', name, desc}]
+let tasks  = [];
+// checklist history = [{date:'YYYY-MM-DD', weight, chest, waist, arm, kcal, sleep, mood}]
+let clHistory = [];
+
+function dateKey(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function keyToDate(k){ const [y,m,d]=k.split('-'); return new Date(+y,+m-1,+d); }
+
+function isInShift(date){
+  const dk=dateKey(date);
+  for(const s of shifts){
+    if(!s.start) continue;
+    if(dk>=s.start&&(!s.end||dk<=s.end)) return true;
+  }
+  return false;
+}
+function isShiftStart(date){ const dk=dateKey(date); return shifts.some(s=>s.start===dk); }
+function isShiftEnd(date)  { const dk=dateKey(date); return shifts.some(s=>s.end===dk); }
+function getCurrentMode(date){ return isInShift(date)?'shift':'gym'; }
+
+// ── VAKHTA CYCLE: отдых A отдых B отдых отдых / неделя B отдых A отдых B отдых отдых ──
+// Day 0 of shift = rest; then alternate A,B with rest days in between
+// Week pattern:  rest A rest B rest rest rest | B rest A rest B rest rest
+// We compute based on days since shift start
+function getVakhtaTrainDay(date){
+  // Find which shift this date belongs to
+  const dk=dateKey(date);
+  for(const s of shifts){
+    if(!s.start||dk<s.start||(!s.end&&dk<s.start)||(s.end&&dk>s.end)) continue;
+    const startD=keyToDate(s.start);
+    const dayN=Math.round((keyToDate(dk)-startD)/86400000); // 0-based
+    // Pattern: each week = 7 days
+    // Odd weeks (0,2,...): rest A rest B rest rest rest  → train on days 1,3
+    // Even weeks (1,3,...): B rest A rest B rest rest    → train on days 0,2,4
+    const week=Math.floor(dayN/7);
+    const dayInWeek=dayN%7;
+    if(week%2===0){
+      // Odd week: rest A rest B rest rest rest
+      if(dayInWeek===1) return 'A';
+      if(dayInWeek===3) return 'B';
+    } else {
+      // Even week: B rest A rest B rest rest
+      if(dayInWeek===0) return 'B';
+      if(dayInWeek===2) return 'A';
+      if(dayInWeek===4) return 'B';
+    }
+    return null; // rest day
+  }
+  return null;
+}
+
+function daysUntilChange(date){
+  const dk=dateKey(date);
+  let nearest=null,label='';
+  for(const s of shifts){
+    if(s.start&&s.start>dk){ const d=Math.round((keyToDate(s.start)-date)/86400000); if(nearest===null||d<nearest){nearest=d;label='до вахты';} }
+    if(s.end&&s.end>dk){ const d=Math.round((keyToDate(s.end)-date)/86400000)+1; if(nearest===null||d<nearest){nearest=d;label='до возвращения';} }
+  }
+  return nearest!==null?`${nearest} дн. ${label}`:'';
+}
+
+// ── localStorage ───────────────────────────────────────────────
+function saveState(){
+  try{
+    localStorage.setItem('plan-shifts',  JSON.stringify(shifts));
+    localStorage.setItem('plan-goals',   JSON.stringify(goals));
+    localStorage.setItem('plan-tasks',   JSON.stringify(tasks));
+    localStorage.setItem('plan-clhist',  JSON.stringify(clHistory));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const s=localStorage.getItem('plan-shifts');  if(s) shifts=JSON.parse(s);
+    const g=localStorage.getItem('plan-goals');   if(g) goals=JSON.parse(g);
+    const t=localStorage.getItem('plan-tasks');   if(t) tasks=JSON.parse(t);
+    const c=localStorage.getItem('plan-clhist');  if(c) clHistory=JSON.parse(c);
+  }catch(e){}
+}
+
+// ── TASKS ──────────────────────────────────────────────────────
+function getTasksForWeek(refDate){
+  const mon=new Date(refDate); mon.setDate(refDate.getDate()-((refDate.getDay()+6)%7));
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const monK=dateKey(mon), sunK=dateKey(sun);
+  return tasks.filter(t=>t.date>=monK&&t.date<=sunK).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+}
+function getTasksForDay(date){ const dk=dateKey(date); return tasks.filter(t=>t.date===dk).sort((a,b)=>a.time.localeCompare(b.time)); }
+function taskUrgency(taskDate,refDate){
+  const diff=Math.round((keyToDate(taskDate)-refDate)/86400000);
+  if(diff<0)  return 'urgent';
+  if(diff===0)return 'today';
+  if(diff<=3) return 'soon';
+  return 'later';
+}
+function deleteTask(id){ tasks=tasks.filter(t=>t.id!==id); saveState(); renderTasksModal(); renderMainTasks(); }
+
+function openTasksModal(){
+  renderTasksModal();
+  document.getElementById('tasks-modal').classList.add('open');
+}
+function closeTasksModal(){ document.getElementById('tasks-modal').classList.remove('open'); }
+
+function renderTasksModal(){
+  const td=today();
+  const cur=addD(td,offset);
+  const weekTasks=getTasksForWeek(cur);
+  const overdue=tasks.filter(t=>t.date<dateKey(td)).sort((a,b)=>a.date.localeCompare(b.date));
+  let h='';
+  if(overdue.length){
+    h+=`<div class="task-group-label">⚠ Просроченные</div>`;
+    h+=overdue.map(t=>taskFullCard(t,td,'urgent')).join('');
+  }
+  // Group week tasks by day
+  const days=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const mon=new Date(cur); mon.setDate(cur.getDate()-((cur.getDay()+6)%7));
+  for(let i=0;i<7;i++){
+    const d=addD(mon,i);
+    const dk=dateKey(d);
+    const dayTasks=weekTasks.filter(t=>t.date===dk);
+    if(dayTasks.length){
+      const isToday=same(d,td);
+      h+=`<div class="task-group-label">${days[i]}, ${d.getDate()} ${MONTHS[d.getMonth()]}${isToday?' — сегодня':''}</div>`;
+      h+=dayTasks.map(t=>taskFullCard(t,td,taskUrgency(t.date,td))).join('');
+    }
+  }
+  const future=tasks.filter(t=>{ const d=keyToDate(t.date); const mon2=new Date(cur); mon2.setDate(cur.getDate()-((cur.getDay()+6)%7)); const sun=new Date(mon2); sun.setDate(mon2.getDate()+6); return d>sun; }).sort((a,b)=>a.date.localeCompare(b.date));
+  if(future.length){
+    h+=`<div class="task-group-label">Позже</div>`;
+    h+=future.map(t=>taskFullCard(t,td,taskUrgency(t.date,td))).join('');
+  }
+  if(!h) h=`<div style="text-align:center;color:rgba(255,255,255,.3);padding:30px 0;font-size:13px">Задач нет. Добавь через долгое нажатие на дату в календаре.</div>`;
+  document.getElementById('tasks-modal-body').innerHTML=h;
+}
+
+function taskFullCard(t,td,urgency){
+  const colors={urgent:'#E74C3C',today:'#E67E22',soon:'#F1C40F',later:'rgba(255,255,255,.3)'};
+  const d=keyToDate(t.date);
+  const dateStr=d.getDate()+' '+MONTHS[d.getMonth()];
+  return `<div class="task-full">
+    <div class="task-full-hdr">
+      <div class="task-dot ${urgency}" style="background:${colors[urgency]};width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px"></div>
+      <div class="task-full-name">${t.name}</div>
+      ${t.time?`<span class="task-full-time">${t.time}</span>`:''}
+      <button class="task-del" onclick="deleteTask('${t.id}')">&#10005;</button>
+    </div>
+    <div class="task-full-date">${dateStr}</div>
+    ${t.desc?`<div class="task-full-desc">${t.desc}</div>`:''}
+  </div>`;
+}
+
+function renderMainTasks(){
+  // Rendered inside the priority panel slot — called from render()
+  const td=today(); const cur=addD(td,offset);
+  const weekTasks=getTasksForWeek(cur);
+  const MAX=4;
+  if(!weekTasks.length){
+    return `<div style="font-size:11px;color:rgba(255,255,255,.3);padding:8px 0;text-align:center;line-height:1.6">Задач нет.<br>Удержи дату в календаре чтобы добавить.</div>`;
+  }
+  let h=weekTasks.slice(0,MAX).map(t=>{
+    const urgency=taskUrgency(t.date,td);
+    const colors={urgent:'#E74C3C',today:'#E67E22',soon:'#F1C40F',later:'rgba(255,255,255,.3)'};
+    const d=keyToDate(t.date);
+    const isToday=same(d,td),isTomorrow=same(d,addD(td,1));
+    const dayLabel=isToday?'Сегодня':isTomorrow?'Завтра':DAYS[d.getDay()]+' '+d.getDate();
+    return `<div class="task-item" onclick="openTasksModal()">
+      <div class="task-dot ${urgency}" style="background:${colors[urgency]}"></div>
+      <div class="task-info">
+        <div class="task-name">${t.name}</div>
+        <div class="task-meta">${dayLabel}${t.time?' · '+t.time:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  if(weekTasks.length>MAX) h+=`<div class="tasks-more" onclick="openTasksModal()">+ ещё ${weekTasks.length-MAX} задач →</div>`;
+  return h;
+}
+
+// ── CHECKLIST ──────────────────────────────────────────────────
+function openChecklist(){
+  renderClHistory();
+  const cur=addD(today(),offset);
+  const dk=dateKey(cur);
+  const existing=clHistory.find(r=>r.date===dk)||{};
+  document.getElementById('cl-weight').value=existing.weight||'';
+  document.getElementById('cl-chest').value=existing.chest||'';
+  document.getElementById('cl-waist').value=existing.waist||'';
+  document.getElementById('cl-arm').value=existing.arm||'';
+  document.getElementById('cl-kcal').value=existing.kcal||'';
+  document.getElementById('cl-sleep').value=existing.sleep||'';
+  document.getElementById('cl-mood').value=existing.mood||'';
+  document.getElementById('checklist-modal').classList.add('open');
+}
+function closeChecklist(){ document.getElementById('checklist-modal').classList.remove('open'); }
+function saveChecklist(){
+  const cur=addD(today(),offset);
+  const dk=dateKey(cur);
+  const rec={
+    date:dk,
+    weight:parseFloat(document.getElementById('cl-weight').value)||null,
+    chest: parseFloat(document.getElementById('cl-chest').value)||null,
+    waist: parseFloat(document.getElementById('cl-waist').value)||null,
+    arm:   parseFloat(document.getElementById('cl-arm').value)||null,
+    kcal:  parseInt(document.getElementById('cl-kcal').value)||null,
+    sleep: parseFloat(document.getElementById('cl-sleep').value)||null,
+    mood:  parseInt(document.getElementById('cl-mood').value)||null,
+  };
+  const idx=clHistory.findIndex(r=>r.date===dk);
+  if(idx>=0) clHistory[idx]=rec; else clHistory.unshift(rec);
+  clHistory.sort((a,b)=>b.date.localeCompare(a.date));
+  saveState();
+  renderClHistory();
+  const btn=document.querySelector('.cl-save');
+  btn.textContent='✓ Сохранено'; setTimeout(()=>btn.textContent='Сохранить',1500);
+}
+function renderClHistory(){
+  const list=document.getElementById('cl-history-list');
+  if(!list) return;
+  if(!clHistory.length){ list.innerHTML=`<div style="font-size:11px;color:rgba(255,255,255,.3)">Записей нет</div>`; return; }
+  list.innerHTML=clHistory.slice(0,10).map(r=>{
+    const d=keyToDate(r.date);
+    const vals=[];
+    if(r.weight) vals.push(`${r.weight}<span> кг</span>`);
+    if(r.chest)  vals.push(`${r.chest}<span> гр</span>`);
+    if(r.waist)  vals.push(`${r.waist}<span> тал</span>`);
+    if(r.arm)    vals.push(`${r.arm}<span> рук</span>`);
+    if(r.kcal)   vals.push(`${r.kcal}<span> ккал</span>`);
+    if(r.sleep)  vals.push(`${r.sleep}<span> сн</span>`);
+    if(r.mood)   vals.push(`${'★'.repeat(r.mood)}`);
+    return `<div class="cl-hist-row">
+      <div class="cl-hist-date">${d.getDate()} ${MONTHS[d.getMonth()]}</div>
+      <div class="cl-hist-vals">${vals.map(v=>`<span class="cl-hist-val">${v}</span>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Long-press calendar ────────────────────────────────────────
+let pressTimer=null;
+function calDayPress(diff){ pressTimer=setTimeout(()=>{ pressTimer=null; openDayMenu(diff); },500); }
+function calDayRelease(diff){ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; jumpTo(diff); } }
+
+function openDayMenu(diff){
+  const d=addD(today(),diff);
+  const dk=dateKey(d);
+  const label=d.getDate()+' '+MONTHS[d.getMonth()];
+  const old=document.getElementById('shift-menu'); if(old)old.remove();
+  const menu=document.createElement('div');
+  menu.id='shift-menu';
+  menu.style.cssText='position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)';
+  menu.innerHTML=`
+    <div style="background:rgba(14,14,28,.98);border:0.5px solid rgba(255,255,255,.12);border-radius:16px;padding:20px 22px;min-width:240px;font-family:inherit">
+      <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px">${label}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.35);margin-bottom:14px">Выбери действие</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <button onclick="openAddTask('${dk}')" style="padding:8px 14px;border-radius:10px;background:rgba(201,162,39,.18);border:0.5px solid rgba(201,162,39,.35);color:#FAC775;font-size:12px;cursor:pointer;font-family:inherit;text-align:left">📋 Добавить задачу</button>
+        <button onclick="markShift('start','${dk}')" style="padding:8px 14px;border-radius:10px;background:rgba(230,126,34,.18);border:0.5px solid rgba(230,126,34,.35);color:#EF9F27;font-size:12px;cursor:pointer;font-family:inherit;text-align:left">🚀 Начало вахты</button>
+        <button onclick="markShift('end','${dk}')" style="padding:8px 14px;border-radius:10px;background:rgba(192,57,43,.18);border:0.5px solid rgba(192,57,43,.35);color:#E74C3C;font-size:12px;cursor:pointer;font-family:inherit;text-align:left">🏠 Конец вахты</button>
+        ${isShiftStart(d)||isShiftEnd(d)?`<button onclick="markShift('clear','${dk}')" style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;font-family:inherit">✕ Снять метку вахты</button>`:''}
+        <button onclick="document.getElementById('shift-menu').remove()" style="padding:6px;border:none;background:transparent;color:rgba(255,255,255,.3);font-size:11px;cursor:pointer;font-family:inherit">Отмена</button>
+      </div>
+    </div>`;
+  document.body.appendChild(menu);
+}
+
+function openAddTask(dk){
+  document.getElementById('shift-menu')?.remove();
+  const old=document.getElementById('add-task-menu'); if(old)old.remove();
+  const d=keyToDate(dk);
+  const label=d.getDate()+' '+MONTHS[d.getMonth()];
+  const menu=document.createElement('div');
+  menu.id='add-task-menu';
+  menu.style.cssText='position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)';
+  menu.innerHTML=`
+    <div style="background:rgba(14,14,28,.98);border:0.5px solid rgba(255,255,255,.12);border-radius:16px;padding:20px 22px;min-width:280px;font-family:inherit">
+      <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px">📋 Задача на ${label}</div>
+      <input id="atask-name" placeholder="Название задачи" style="width:100%;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;color:#fff;font-size:12px;outline:none;font-family:inherit;margin-bottom:8px">
+      <input id="atask-time" placeholder="Время (напр. 14:30)" style="width:100%;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;color:#fff;font-size:12px;outline:none;font-family:inherit;margin-bottom:8px">
+      <textarea id="atask-desc" placeholder="Описание (необязательно)" rows="3" style="width:100%;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;color:#fff;font-size:12px;outline:none;font-family:inherit;resize:vertical;margin-bottom:12px"></textarea>
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmAddTask('${dk}')" style="flex:1;padding:8px;border-radius:10px;background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Добавить</button>
+        <button onclick="document.getElementById('add-task-menu').remove()" style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.07);border:0.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;font-family:inherit">Отмена</button>
+      </div>
+    </div>`;
+  document.body.appendChild(menu);
+  setTimeout(()=>document.getElementById('atask-name')?.focus(),100);
+}
+
+function confirmAddTask(dk){
+  const name=document.getElementById('atask-name')?.value?.trim();
+  if(!name) return;
+  const time=document.getElementById('atask-time')?.value?.trim()||'';
+  const desc=document.getElementById('atask-desc')?.value?.trim()||'';
+  tasks.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2), date:dk, time, name, desc});
+  tasks.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  document.getElementById('add-task-menu')?.remove();
+  saveState(); renderCal(); render();
+}
+
+function markShift(action,dk){
+  document.getElementById('shift-menu')?.remove();
+  if(action==='clear'){
+    shifts=shifts.filter(s=>s.start!==dk&&s.end!==dk);
+    shifts.forEach(s=>{ if(s.end===dk)s.end=null; });
+    shifts=shifts.filter(s=>s.start);
+  } else if(action==='start'){
+    if(!shifts.find(s=>!s.end&&s.start<=dk)) shifts.push({start:dk,end:null});
+  } else if(action==='end'){
+    const open=shifts.find(s=>!s.end&&s.start<=dk);
+    if(open) open.end=dk; else shifts.push({start:dk,end:dk});
+  }
+  saveState(); renderCal(); render();
+}
+
+function today(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
+function addD(b,n){ const d=new Date(b); d.setDate(d.getDate()+n); return d; }
+function same(a,b){ return a.toDateString()===b.toDateString(); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function trainIdx(date){ let c=0,d=new Date(START); while(d<=date){if(GYM.includes(d.getDay()))c++;d.setDate(d.getDate()+1);} return(c-1)%3; }
+function getMealsForDay(date){
+  const mode=getCurrentMode(date);
+  if(mode==='shift') return MEAL_VAKHTA[date.getDay()]||MEAL_VAKHTA[2];
+  const wd=date.getDay(); return MEAL_WEEK[wd]||(GYM.includes(wd)?MEAL_WEEK[1]:MEAL_WEEK[2]);
+}
+
+// ── VAKHTA MEALS (вахтовое питание — без зала) ────────────────
+const MEAL_VAKHTA = {
+  0:[{t:'Завтрак',time:'7:30',f:'Овсянка с орехами и сухофруктами',k:420,p:14,fat:14,c:58,fib:6,recipe:['Овсянку залить кипятком','Грецкие орехи 20г + курага 3 шт'],prep:'5 мин',tip:'Медленные углеводы на весь день.',alts:['Каша с бананом','Геркулес с мёдом']},{t:'Перекус',time:'10:30',f:'Творог с бананом',k:230,p:20,fat:5,c:28,fib:2,recipe:['Творог 5% 150г','Банан нарезать'],prep:'2 мин',tip:'Белок + быстрые углеводы.',alts:['Йогурт + яблоко']},{t:'Обед',time:'13:00',f:'Тунец консервированный с гречкой и огурцом',k:520,p:42,fat:12,c:54,fib:6,recipe:['Гречку отварить','Тунец консервированный — слить','Огурец + зелень'],prep:'20 мин',tip:'Тунец + гречка — идеальное соотношение БЖУ на вахте.',alts:['Паштет из тунца + рис']},{t:'Полдник',time:'16:00',f:'Орехи и сухофрукты',k:180,p:5,fat:12,c:16,fib:2,recipe:['Грецкие орехи 20г','Курага или финики 3 шт'],prep:'0 мин',tip:'Калорийный перекус без готовки.',alts:['Протеиновый батончик']},{t:'Ужин',time:'19:00',f:'Куриная грудка консервированная с рисом',k:480,p:38,fat:8,c:56,fib:3,recipe:['Рис отварить','Куриная грудка консервированная','Добавить зелень если есть'],prep:'20 мин',tip:'На вахте без кухни — консервы выручают.',alts:['Тунец + макароны']}],
+  1:[{t:'Завтрак',time:'7:30',f:'Яйца вкрутую с хлебцами и авокадо',k:380,p:22,fat:20,c:24,fib:4,recipe:['3 яйца отварить','Авокадо размять с лимоном','Хлебцы рисовые'],prep:'12 мин',tip:'Яйца — лучший белок на вахте.',alts:['Омлет если есть плита']},{t:'Перекус',time:'10:30',f:'Творог с орехами',k:220,p:22,fat:12,c:7,fib:1,recipe:['Творог 5% 150г','Грецкие орехи 15г'],prep:'2 мин',tip:'Белок без готовки.',alts:['Греческий йогурт']},{t:'Обед',time:'13:00',f:'Паста с тунцом и томатным соусом',k:600,p:44,fat:14,c:72,fib:5,recipe:['Паста отварить','Тунец консервированный','Томатный соус — добавить'],prep:'15 мин',tip:'Быстро и сытно.',alts:['Рис с тунцом']},{t:'Полдник',time:'16:00',f:'Протеиновый батончик или орехи',k:200,p:15,fat:10,c:16,fib:2,recipe:['Батончик или орехи 30г'],prep:'0 мин',tip:'Удобно на вахте.',alts:['Сухофрукты + орехи']},{t:'Ужин',time:'19:00',f:'Гречка с тушёнкой или консервированной курицей',k:500,p:36,fat:16,c:52,fib:5,recipe:['Гречку залить кипятком на 15 мин','Тушёнка или куриная консерва','Добавить сушёный укроп'],prep:'20 мин',tip:'Классика вахты.',alts:['Рис с тушёнкой']}],
+  2:[{t:'Завтрак',time:'7:30',f:'Геркулес с чиа и сухофруктами',k:400,p:14,fat:10,c:62,fib:9,recipe:['Геркулес залить кипятком','Чиа 10г','Курага 3 шт + корица'],prep:'5 мин',tip:'Клетчатка + омега-3 с утра.',alts:['Овсянка с орехами']},{t:'Перекус',time:'10:30',f:'Яйцо вкрутую + хлебцы',k:180,p:14,fat:7,c:16,fib:1,recipe:['2 яйца отварить','Хлебцы 3 шт'],prep:'10 мин',tip:'Белок без суеты.',alts:['Творог 100г']},{t:'Обед',time:'13:00',f:'Рис с консервированной рыбой и зеленью',k:510,p:38,fat:12,c:56,fib:4,recipe:['Рис отварить','Консервированная рыба — слить','Зелень сушёная или свежая'],prep:'20 мин',tip:'Полный приём пищи без сложных ингредиентов.',alts:['Гречка с тунцом']},{t:'Полдник',time:'16:00',f:'Семена чиа с йогуртом',k:170,p:8,fat:7,c:18,fib:5,recipe:['Йогурт 100г','Чиа 10г — замочить на 15 мин'],prep:'15 мин',tip:'Клетчатка и сытость.',alts:['Творог 100г']},{t:'Ужин',time:'19:00',f:'Макароны с паштетом из тунца',k:520,p:36,fat:16,c:58,fib:4,recipe:['Макароны отварить','Паштет из тунца — намазать','Добавить оливковое масло'],prep:'15 мин',tip:'Просто и вкусно.',alts:['Рис с тунцом']}],
+};
+// Fill missing days
+for(let i=3;i<7;i++) MEAL_VAKHTA[i]=MEAL_VAKHTA[i%3];
+
+// ── Training Modal ─────────────────────────────────────────────
+let tmDayIdx=0, tmExIdx=0, tmTab='ex', tmData=null;
+
+function openTrainModal(trainDayIdx){
+  tmDayIdx=trainDayIdx; tmExIdx=0; tmTab='ex';
+  tmData={type:'gym', idx:trainDayIdx};
+  renderTmFull();
+  document.getElementById('train-modal').classList.add('open');
+}
+
+function openVakhtaModal(type){
+  tmTab='ex'; tmExIdx=0;
+  tmData={type:'vakhta', vType:type};
+  renderTmFull();
+  document.getElementById('train-modal').classList.add('open');
+}
+
+function setTmTab(tab){ tmTab=tab; renderTmFull(); }
+
+function renderTmFull(){
+  const isGym = tmData.type==='gym';
+  const t = isGym ? TRAINS[tmData.idx] : VAKHTA[tmData.vType];
+  const warmup  = isGym ? WARMUPS[tmData.idx]  : t.warmup;
+  const cooldown= isGym ? COOLDOWNS[tmData.idx] : t.cooldown;
+
+  document.getElementById('tm-title').textContent    = t.name;
+  document.getElementById('tm-schema').textContent   = (t.muscles||[]).join(' · ');
+  document.getElementById('tm-subtitle').textContent = '';
+
+  // Tabs
+  document.getElementById('tm-nav-title').innerHTML =
+    `<div class="tm-tabs">
+      <button class="tm-tab${tmTab==='warm'?' on':''}" onclick="setTmTab('warm')">Разминка</button>
+      <button class="tm-tab${tmTab==='ex'?' on':''}" onclick="setTmTab('ex')">Упражнения (${t.exercises.length})</button>
+      <button class="tm-tab${tmTab==='cool'?' on':''}" onclick="setTmTab('cool')">Заминка</button>
+    </div>`;
+
+  if(tmTab==='warm'){
+    document.getElementById('tm-nav-list').innerHTML='';
+    document.getElementById('tm-prev').disabled=true;
+    document.getElementById('tm-next').disabled=true;
+    document.getElementById('tm-content').innerHTML=
+      `<div class="wc-list">${warmup.map((w,i)=>`
+        <div class="wc-item wc-warm">
+          <div class="wc-num">${i+1}</div>
+          <div class="wc-body"><div class="wc-name">${w.n}</div><div class="wc-desc">${w.d}</div></div>
+        </div>`).join('')}</div>
+       <div class="wc-note" style="background:rgba(241,196,15,.07);border:0.5px solid rgba(241,196,15,.2);color:rgba(241,196,15,.8)">
+         ⏱ Разминка 8–12 мин. Не пропускай — снижает риск травм и улучшает результат.
+       </div>`;
+    return;
+  }
+
+  if(tmTab==='cool'){
+    document.getElementById('tm-nav-list').innerHTML='';
+    document.getElementById('tm-prev').disabled=true;
+    document.getElementById('tm-next').disabled=true;
+    document.getElementById('tm-content').innerHTML=
+      `<div class="wc-list">${cooldown.map((w,i)=>`
+        <div class="wc-item wc-cool">
+          <div class="wc-num">${i+1}</div>
+          <div class="wc-body"><div class="wc-name">${w.n}</div><div class="wc-desc">${w.d}</div></div>
+        </div>`).join('')}</div>
+       <div class="wc-note" style="background:rgba(46,117,182,.07);border:0.5px solid rgba(46,117,182,.2);color:rgba(133,183,235,.8)">
+         ⏱ Заминка 8–10 мин. Ускоряет восстановление и снижает крепатуру.
+       </div>`;
+    return;
+  }
+
+  // Exercises tab — reuse existing renderTmNav/renderTmEx logic
+  renderTmNavFor(t);
+  renderTmExFor(t);
+}
+
+function renderTmNavFor(t){
+  document.getElementById('tm-nav-list').innerHTML=t.exercises.map((e,i)=>`
+    <div class="tm-nav-item${i===tmExIdx?' on':''}" onclick="tmExIdx=${i};renderTmFull()">
+      <div class="tm-nav-num" style="background:${i===tmExIdx?t.color:'rgba(255,255,255,.1)'};color:${i===tmExIdx?'#fff':'rgba(255,255,255,.5)'}">${i+1}</div>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.n.replace(' ⚠','')}</span>
+      ${e.warn?'<span class="tm-nav-warn">⚠</span>':''}
+    </div>`).join('');
+}
+
+function renderTmExFor(t){
+  const e=t.exercises[tmExIdx];
+  document.getElementById('tm-prev').disabled=tmExIdx===0;
+  document.getElementById('tm-next').disabled=tmExIdx===t.exercises.length-1;
+  const techItems=(e.tech||[]).map(pt=>`<li>${pt}</li>`).join('');
+  const warnHtml=e.warn&&e.warn_text?`<div class="tm-warn">⚠ ${e.warn_text}</div>`:'';
+  const tipHtml=e.tip?`<div class="tm-tip">💡 ${e.tip}</div>`:'';
+  const alts=e.alts||[];
+  const altsHtml=alts.length?`<div><div class="tm-block-lbl">Аналоги</div><div class="tm-alts">${alts.map(a=>`<span class="tm-alt">${a}</span>`).join('')}</div></div>`:'';
+  document.getElementById('tm-content').innerHTML=`
+    <div class="tm-grid">
+      <div><div class="tm-block-lbl">Техника</div><ul class="tm-tech">${techItems}</ul></div>
+      <div><div class="tm-block-lbl">Подходы</div>
+        <div class="tm-sets">
+          <div class="tm-set-box"><div class="tm-set-val">${e.schema.sets}</div><div class="tm-set-lbl">подходов</div></div>
+          <div class="tm-set-box"><div class="tm-set-val">${e.schema.reps}</div><div class="tm-set-lbl">повторений</div></div>
+          <div class="tm-set-box"><div class="tm-set-val">${e.schema.rest}</div><div class="tm-set-lbl">отдых</div></div>
+        </div>
+        ${warnHtml}${tipHtml}
+      </div>
+    </div>${altsHtml}`;
+}
+
+// Keep old nav for gym (arrows)
+function renderTmNav(){ if(tmData&&tmData.type==='gym') renderTmNavFor(TRAINS[tmData.idx]); }
+function renderTmEx(){  if(tmData&&tmData.type==='gym') renderTmExFor(TRAINS[tmData.idx]); }
+
+function tmNav(dir){
+  const t = tmData.type==='gym' ? TRAINS[tmData.idx] : VAKHTA[tmData.vType];
+  tmExIdx=Math.max(0,Math.min(t.exercises.length-1,tmExIdx+dir));
+  renderTmFull();
+}
+
+function closeTrainModal(){
+  document.getElementById('train-modal').classList.remove('open');
+  tmData=null;
+}
+
+// ── Settings ───────────────────────────────────────────────────
+function setSz(s,btn){ document.body.className=document.body.className.replace(/sz-\w+/,'sz-'+s); document.querySelectorAll('.sgb').forEach(b=>{if(['S','M','L'].includes(b.textContent))b.classList.remove('on');}); btn.classList.add('on'); }
+function setFnt(f,btn){ ['font-dm','font-outfit'].forEach(c=>document.body.classList.remove(c)); if(f)document.body.classList.add(f); document.querySelectorAll('.sgb').forEach(b=>{if(['Segoe','Trebuchet','Century'].includes(b.textContent))b.classList.remove('on');}); btn.classList.add('on'); }
+function setTh(t,dot){ document.body.className=document.body.className.replace(/t-\w+/,'t-'+t); document.querySelectorAll('.tdot').forEach(d=>d.classList.remove('on')); dot.classList.add('on'); }
+function setOp(v){ document.documentElement.style.setProperty('--bg-op',(v/100).toFixed(2)); document.getElementById('opval').textContent=v+'%'; }
+function togSettings(){ settOpen=!settOpen; if(settOpen&&edOpen)togEditor(); document.getElementById('sbar').classList.toggle('open',settOpen); document.getElementById('sbtn').classList.toggle('on',settOpen); }
+
+// ── Appearance: bg hue, text hue, text brightness ─────────────
+let bgHue=50, textHue=50, textBri=85;
+
+function setBgHue(v){
+  bgHue=+v;
+  // warm = reddish tint, cool = blueish tint
+  const warm = v/100;
+  const r=Math.round(8+warm*12), g=Math.round(8-warm*2), b=Math.round(18+warm*4);
+  document.querySelectorAll('.widget,.cal-panel,.rpanel,.ebar,.sbar,.prog-box,.cl-box,.tm-box')
+    .forEach(el=> el.style.setProperty('--bg-tint',`${r},${g},${b}`));
+  applyBgTint();
+}
+
+function applyBgTint(){
+  const op=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bg-op'))||.75;
+  const warm=bgHue/100;
+  const r=Math.round(8+warm*14), g=Math.round(8-warm*3), b=Math.round(18-warm*6);
+  document.getElementById('widget').style.background=`rgba(${r},${g},${b},${op})`;
+}
+
+function setTextHue(v){
+  textHue=+v;
+  // 0=cool blue tint, 100=warm yellow tint
+  const h=Math.round(v<50 ? 200+(50-v)*1.2 : 40-(v-50)*0.8);
+  const s=Math.round(Math.abs(v-50)*1.5);
+  document.documentElement.style.setProperty('--text-hue',`${h}`);
+  document.documentElement.style.setProperty('--text-sat',`${s}%`);
+  applyTextColor();
+}
+
+function setTextBri(v){
+  textBri=+v;
+  document.documentElement.style.setProperty('--text-bri',`${v}%`);
+  applyTextColor();
+}
+
+function applyTextColor(){
+  const h=getComputedStyle(document.documentElement).getPropertyValue('--text-hue')||'0';
+  const s=getComputedStyle(document.documentElement).getPropertyValue('--text-sat')||'0%';
+  const b=getComputedStyle(document.documentElement).getPropertyValue('--text-bri')||'85%';
+  document.documentElement.style.setProperty('--text-main',`hsl(${h},${s},${b})`);
+  document.getElementById('widget').style.color=`hsl(${h},${s},${b})`;
+}
+
+function resetAppearance(){
+  bgHue=50; textHue=50; textBri=85;
+  document.getElementById('widget').style.background='';
+  document.getElementById('widget').style.color='';
+  document.documentElement.style.removeProperty('--text-hue');
+  document.documentElement.style.removeProperty('--text-sat');
+  document.documentElement.style.removeProperty('--text-bri');
+  // Reset sliders visually
+  document.querySelectorAll('.sslider').forEach((s,i)=>{
+    if(i===1) s.value=50;  // bg hue
+    if(i===2) s.value=50;  // text hue
+    if(i===3) s.value=85;  // text bri
+  });
+}
+
+// ── Progress tracking ──────────────────────────────────────────
+// progLog = { 'YYYY-MM-DD_dayIdx_exIdx': [{w,r}, ...] }
+let progLog = {};
+let progDayIdx = 0;
+
+function saveProgState(){ try{ localStorage.setItem('plan-prog', JSON.stringify(progLog)); }catch(e){} }
+function loadProgState(){ try{ const p=localStorage.getItem('plan-prog'); if(p) progLog=JSON.parse(p); }catch(e){} }
+
+function openProgModal(){
+  const cur=addD(today(),offset);
+  const isG=!isInShift(cur)&&GYM.includes(cur.getDay());
+  progDayIdx=isG?trainIdx(cur):0;
+  renderProgModal();
+  document.getElementById('prog-modal').classList.add('open');
+}
+function closeProgModal(){ document.getElementById('prog-modal').classList.remove('open'); }
+
+function renderProgModal(){
+  // Day tabs
+  const tabs=TRAINS.map((t,i)=>
+    `<button class="prog-dtab${i===progDayIdx?' on':''}" style="--pd-col:${t.color}" onclick="progDayIdx=${i};renderProgModal()">${t.short} ${t.name.split('—')[1]?.trim()||''}</button>`
+  ).join('');
+  document.getElementById('prog-day-tabs').innerHTML=tabs;
+
+  const t=TRAINS[progDayIdx];
+  const td=today(), cur=addD(td,offset);
+  const dk=dateKey(cur);
+  document.getElementById('prog-date').textContent=cur.getDate()+' '+MONTHS[cur.getMonth()]+' '+cur.getFullYear();
+
+  // Exercise rows
+  const rows=t.exercises.map((e,ei)=>{
+    const key=`${dk}_${progDayIdx}_${ei}`;
+    const saved=progLog[key]||[];
+    const sets=e.schema.sets||3;
+    const cols=Array.from({length:sets},(_,si)=>{
+      const sv=saved[si]||{};
+      return `<div class="prog-set-col">
+        <div class="prog-set-lbl">Под. ${si+1}</div>
+        <input class="prog-inp" type="number" min="0" step="0.5" placeholder="кг" value="${sv.w||''}" id="pw_${ei}_${si}" oninput="updateBest(${ei},${sets})">
+        <input class="prog-inp" type="number" min="0" step="1" placeholder="повт" value="${sv.r||''}" id="pr_${ei}_${si}" style="margin-top:3px;color:rgba(133,183,235,.8)">
+        <div class="prog-best" id="pb_${ei}_${si}"></div>
+      </div>`;
+    }).join('');
+
+    return `<div class="prog-ex">
+      <div class="prog-ex-hdr">
+        <span class="prog-ex-name" style="border-left:3px solid ${t.color};padding-left:8px">${e.n.replace(' ⚠','')}</span>
+        <span class="prog-ex-schema">${e.s}</span>
+      </div>
+      <div class="prog-sets-grid">${cols}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('prog-ex-list').innerHTML=rows;
+
+  // Show bests
+  t.exercises.forEach((_,ei)=>updateBest(ei,t.exercises[ei].schema.sets||3));
+
+  // History
+  renderProgHist(t, progDayIdx);
+}
+
+function updateBest(ei, sets){
+  // Find best weight across all history for this exercise
+  const allKeys=Object.keys(progLog).filter(k=>k.includes(`_${progDayIdx}_${ei}`));
+  let best=0;
+  allKeys.forEach(k=>progLog[k].forEach(s=>{ if(s.w>best) best=s.w; }));
+  for(let si=0;si<sets;si++){
+    const el=document.getElementById(`pb_${ei}_${si}`);
+    if(el) el.textContent = best>0?`лучший: ${best} кг`:'';
+  }
+}
+
+function saveProgress(){
+  const t=TRAINS[progDayIdx];
+  const cur=addD(today(),offset);
+  const dk=dateKey(cur);
+  t.exercises.forEach((e,ei)=>{
+    const sets=e.schema.sets||3;
+    const arr=[];
+    for(let si=0;si<sets;si++){
+      const w=parseFloat(document.getElementById(`pw_${ei}_${si}`)?.value)||0;
+      const r=parseInt(document.getElementById(`pr_${ei}_${si}`)?.value)||0;
+      arr.push({w,r});
+    }
+    if(arr.some(s=>s.w||s.r)) progLog[`${dk}_${progDayIdx}_${ei}`]=arr;
+  });
+  saveProgState();
+  const btn=document.querySelector('.prog-save');
+  btn.textContent='✓ Сохранено'; setTimeout(()=>btn.textContent='Сохранить',1500);
+  renderProgHist(t, progDayIdx);
+}
+
+function renderProgHist(t, dayIdx){
+  // Collect all dates with data for this day
+  const dates=[...new Set(
+    Object.keys(progLog)
+      .filter(k=>k.includes(`_${dayIdx}_`))
+      .map(k=>k.split('_')[0]+'-'+k.split('_')[1]+'-'+k.split('_')[2])
+  )].sort().reverse().slice(0,8);
+
+  if(!dates.length){ document.getElementById('prog-hist').innerHTML=`<div style="font-size:11px;color:rgba(255,255,255,.3)">Записей нет. Заполни веса выше и нажми Сохранить.</div>`; return; }
+
+  const rows=dates.map(dk=>{
+    const d=keyToDate(dk);
+    const dateStr=d.getDate()+' '+MONTHS[d.getMonth()];
+    const exSummary=t.exercises.map((e,ei)=>{
+      const saved=progLog[`${dk}_${dayIdx}_${ei}`]||[];
+      const maxW=Math.max(...saved.map(s=>s.w||0));
+      const maxR=saved.find(s=>s.w===maxW)?.r||0;
+      return maxW?`${e.n.split(' ')[0]}: ${maxW}кг×${maxR}`:'';
+    }).filter(Boolean).join(' · ');
+    return `<div class="prog-hist-item">
+      <span class="prog-hist-date">${dateStr}</span>
+      <span class="prog-hist-sets">${exSummary||'—'}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('prog-hist').innerHTML=rows;
+}
+
+// ── Editor ─────────────────────────────────────────────────────
+function togEditor(){ edOpen=!edOpen; if(edOpen&&settOpen)togSettings(); document.getElementById('ebar').classList.toggle('open',edOpen); document.getElementById('ebtn').classList.toggle('on',edOpen); if(edOpen){renderEdEx();renderEdMeals();} }
+function edTab(tab,btn){ edSection=tab; document.querySelectorAll('.ed-tab').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); document.getElementById('ed-ex').classList.toggle('on',tab==='ex'); document.getElementById('ed-meals').classList.toggle('on',tab==='meals'); }
+function edMT(t,btn){ edMealType_=t; document.querySelectorAll('#ed-meals .ed-dt').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); renderEdMeals(); }
+function renderEdEx(){
+  document.getElementById('ed-day-tabs').innerHTML=TRAINS.map((t,i)=>`<button class="ed-dt${i===edDay?' on':''}" onclick="edDay=${i};renderEdEx()">${t.short}</button>`).join('');
+  const t=TRAINS[edDay];
+  document.getElementById('ed-ex-list').innerHTML=t.exercises.map((e,i)=>`<div class="ed-row"><input class="ed-inp" value="${e.n}" id="ex-n-${i}"><input class="ed-inp-sm" value="${e.s}" id="ex-s-${i}"><button class="ed-del" onclick="delEx(${i})">&#10005;</button></div>`).join('');
+}
+function addEx(){ TRAINS[edDay].exercises.push({n:'Новое упражнение',s:'3×10–12',warn:false,worked:[],schema:{sets:3,reps:'10–12',rest:'2 мин'},tech:[],tip:''}); renderEdEx(); }
+function delEx(i){ TRAINS[edDay].exercises.splice(i,1); renderEdEx(); }
+function saveEx(){ TRAINS[edDay].exercises.forEach((e,i)=>{const n=document.getElementById('ex-n-'+i),s=document.getElementById('ex-s-'+i);if(n)e.n=n.value;if(s)e.s=s.value;}); render(); const b=document.querySelector('#ed-ex .ed-save'); b.textContent='✓ Сохранено'; setTimeout(()=>b.textContent='Сохранить',1500); }
+function renderEdMeals(){
+  const cur=addD(today(),offset); const wd=cur.getDay(); const meals=getMealsForDay(cur);
+  document.getElementById('ed-meal-list').innerHTML=meals.map((m,i)=>`<div class="ed-row"><input class="ed-inp" value="${m.t}" id="ml-t-${i}" style="max-width:80px"><input class="ed-inp" value="${m.f}" id="ml-f-${i}"><input class="ed-inp-sm" value="${m.k}" id="ml-k-${i}" style="width:60px"><button class="ed-del" onclick="delMeal(${i})">&#10005;</button></div>`).join('');
+}
+function addMeal(){ const cur=addD(today(),offset); const meals=getMealsForDay(cur); meals.push({t:'Перекус',time:'',f:'Новое блюдо',k:200,p:15,fat:8,c:18,fib:2,recipe:[],prep:'',tip:'',alts:[]}); renderEdMeals(); }
+function delMeal(i){ const cur=addD(today(),offset); const meals=getMealsForDay(cur); meals.splice(i,1); renderEdMeals(); }
+function saveMeals(){ const cur=addD(today(),offset); const meals=getMealsForDay(cur); meals.forEach((m,i)=>{const t=document.getElementById('ml-t-'+i),f=document.getElementById('ml-f-'+i),k=document.getElementById('ml-k-'+i);if(t)m.t=t.value;if(f)m.f=f.value;if(k)m.k=parseInt(k.value)||m.k;}); render(); const b=document.querySelector('#ed-meals .ed-save'); b.textContent='✓ Сохранено'; setTimeout(()=>b.textContent='Сохранить',1500); }
+
+// ── Shopping ───────────────────────────────────────────────────
+function togShop(){ shopOpen=!shopOpen; document.getElementById('shopbar').classList.toggle('open',shopOpen); document.getElementById('shopbtn').classList.toggle('on',shopOpen); }
+function renderShop(){
+  const tmr=addD(today(),offset+1);
+  const mode=getCurrentMode(tmr);
+  const isG=mode==='gym'&&GYM.includes(tmr.getDay());
+  document.getElementById('shopitems').innerHTML=SHOP[isG?'train':'rest'].map(i=>`<span class="shop-tag">${i}</span>`).join('');
+}
+
+// ── Calendar ───────────────────────────────────────────────────
+function togCal(){ calOpen=!calOpen; if(calOpen){calOff=0;renderCal();} document.getElementById('cal-panel').classList.toggle('open',calOpen); document.getElementById('widget').classList.toggle('cal-open',calOpen); document.getElementById('date-btn').classList.toggle('on',calOpen); }
+function closeCal(){ calOpen=false; document.getElementById('cal-panel').classList.remove('open'); document.getElementById('widget').classList.remove('cal-open'); document.getElementById('date-btn').classList.remove('on'); }
+function calSh(d){ calOff+=d; renderCal(); }
+function renderCal(){
+  const td=today(),cur=addD(td,offset);
+  const base=new Date(td.getFullYear(),td.getMonth()+calOff,1);
+  document.getElementById('cal-title').textContent=MSHORT[base.getMonth()]+' '+base.getFullYear();
+  const fd=base.getDay(),sm=(fd===0)?6:fd-1,dim=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
+  let h='';
+  for(let i=0;i<sm;i++){
+    const d=new Date(base.getFullYear(),base.getMonth(),-(sm-1-i));
+    h+=`<div class="cd om"><div class="cd-num">${d.getDate()}</div></div>`;
+  }
+  for(let i=1;i<=dim;i++){
+    const d=new Date(base.getFullYear(),base.getMonth(),i);
+    const iT=same(d,td),iC=same(d,cur);
+    const iG=GYM.includes(d.getDay())&&getCurrentMode(d)==='gym';
+    const iShiftStart=isShiftStart(d),iShiftEnd=isShiftEnd(d),iInShift=isInShift(d);
+    const dayTasks=getTasksForDay(d);
+    const diff=Math.round((d-td)/86400000);
+    const cls=['cd',iC?'sel':'',iT&&!iC?'td':'',iG&&!iC&&!iShiftStart&&!iShiftEnd?'gym':'',iShiftStart&&!iC?'shift-start':'',iShiftEnd&&!iShiftStart&&!iC?'shift-end':'',iInShift&&!iShiftStart&&!iShiftEnd&&!iC?'in-shift':''].filter(Boolean).join(' ');
+    const marker=iShiftStart?'<div class="cd-marker" style="color:#E67E22">ВАХ</div>':iShiftEnd?'<div class="cd-marker" style="color:#E74C3C">ДОМ</div>':'';
+    const taskDots=dayTasks.length?`<div class="cd-tasks">${Array(Math.min(dayTasks.length,3)).fill('<div class="cd-tdot"></div>').join('')}</div>`:'';
+    h+=`<div class="${cls}" onmousedown="calDayPress(${diff})" onmouseup="calDayRelease(${diff})" ontouchstart="calDayPress(${diff})" ontouchend="calDayRelease(${diff})">
+      <div class="cd-num">${i}</div>${marker}${taskDots}
+    </div>`;
+  }
+  const rem=(7-((sm+dim)%7))%7;
+  for(let i=1;i<=rem;i++) h+=`<div class="cd om"><div class="cd-num">${i}</div></div>`;
+  document.getElementById('cal-days').innerHTML=h;
+}
+function jumpTo(diff){ offset=diff; closeCal(); closeRP(); render(); }
+
+// ── Goals (localStorage) ───────────────────────────────────────
+function togGoal(key){
+  const k=addD(today(),offset).toDateString()+'_'+key;
+  goals[k]=!goals[k]; saveState(); renderGoals();
+}
+function renderGoals(){
+  const cur=addD(today(),offset),dk=cur.toDateString();
+  const mode=getCurrentMode(cur);
+  const isG=mode==='gym'&&GYM.includes(cur.getDay());
+  const isSunday=cur.getDay()===0;
+  const weeklyExtras=isSunday?['⚖ Взвеситься','📏 Снять замеры']:[];
+  const items=mode==='shift'
+    ?['🧘 PRI утром','💧 Вода 2л','🍳 Завтрак','🥩 Обед','🥗 Ужин','😴 Сон 8ч','🏕 Вахта — держись!',...weeklyExtras]
+    :isG
+      ?['🏋 Тренировка','🧘 PRI утром','🍳 Завтрак','🥩 Обед','🥗 Ужин','💧 Вода 2.5л','😴 Сон 8ч',...weeklyExtras]
+      :['🧘 PRI утром','💻 Chin tuck','🍳 Завтрак','🥗 Ужин','💧 Вода 2.5л','😴 Сон 8ч','🚶 Прогулка',...weeklyExtras];
+  document.getElementById('grow').innerHTML=items.map(item=>{
+    const done=!!goals[dk+'_'+item];
+    const isWeekly=weeklyExtras.includes(item);
+    return `<div class="gchip${done?' done':''}${isWeekly?' weekly':''}" onclick="togGoal('${item}')" style="${isWeekly&&!done?'border-color:rgba(201,162,39,.4);background:rgba(201,162,39,.08);color:rgba(250,220,100,.7)':''}">${done?'✓':'○'} ${item}</div>`;
+  }).join('');
+}
+
+// ── Meal detail ────────────────────────────────────────────────
+function openM(idx){
+  if(activeM===idx){closeRP();return;}
+  activeM=idx;
+  document.querySelectorAll('.mcard').forEach((c,i)=>c.classList.toggle('active',i===idx));
+  const cur=addD(today(),offset);
+  const meals=getMealsForDay(cur);
+  const m=meals[idx];
+  const ri=(m.recipe||[]).map(r=>`<li>${r}</li>`).join('');
+  const at=(m.alts||[]).map(a=>`<span class="altag">${a}</span>`).join('');
+  document.getElementById('rpcontent').innerHTML=`
+    <div class="rp-mname">${m.t}</div>
+    <div class="rp-mtime">${m.time||''}</div>
+    <div class="bjurow">
+      <div class="bjub"><div class="bjuv">${m.p||'—'}г</div><div class="bjul">белок</div></div>
+      <div class="bjub"><div class="bjuv">${m.fat||'—'}г</div><div class="bjul">жиры</div></div>
+      <div class="bjub"><div class="bjuv">${m.c||'—'}г</div><div class="bjul">углев.</div></div>
+      <div class="bjub"><div class="bjuv">${m.fib||'—'}г</div><div class="bjul">клетч.</div></div>
+      <div class="bjub"><div class="bjuv">${m.k}</div><div class="bjul">ккал</div></div>
+    </div>
+    ${ri?`<div class="psec"><div class="psl">рецепт</div><ul class="ptxt">${ri}</ul>${m.prep?`<div class="prep-time">⏱ ${m.prep}</div>`:''}</div>`:''}
+    ${m.tip?`<div class="psec"><div class="ptip">${m.tip}</div></div>`:''}
+    ${at?`<div class="psec"><div class="psl">альтернативы</div><div class="palts">${at}</div></div>`:''}`;
+  document.getElementById('rpanel').classList.add('open');
+  document.getElementById('widget').classList.add('rp-open');
+}
+function closeRP(){ activeM=null; document.querySelectorAll('.mcard').forEach(c=>c.classList.remove('active')); document.getElementById('rpanel').classList.remove('open'); document.getElementById('widget').classList.remove('rp-open'); }
+
+// ── Nav ────────────────────────────────────────────────────────
+let lastOffset=0;
+function shift(d){
+  const prev=offset;
+  offset=d===0?0:offset+d;
+  lastOffset=prev;
+  closeRP(); if(calOpen)togCal(); render();
+}
+function tick(){ document.getElementById('htime').textContent=pad(new Date().getHours())+':'+pad(new Date().getMinutes()); }
+
+// ── Main render ────────────────────────────────────────────────
+function render(){
+  const td=today(),cur=addD(td,offset),wd=cur.getDay();
+  const mode=getCurrentMode(cur);
+  const isShift=mode==='shift';
+  const isG=!isShift&&GYM.includes(wd);
+
+  // Date + weekday
+  document.getElementById('date-btn').textContent=cur.getDate()+' '+MONTHS[cur.getMonth()]+' '+cur.getFullYear();
+  document.getElementById('hdr-wd').textContent=DAYS[wd];
+  document.getElementById('btn-td').classList.toggle('on',offset===0);
+
+  // Mode badge
+  const badge=document.getElementById('mode-badge');
+  if(isShift){
+    badge.className='mode-badge shift'; badge.textContent='🏕 Вахта';
+    document.body.classList.add('mode-shift'); document.body.classList.remove('mode-gym');
+  } else {
+    const gymDays=isG?(['Пн','Ср','Пт'][trainIdx(cur)]||'Зал'):'Зал';
+    badge.className='mode-badge gym'; badge.textContent='🏋 Зал';
+    document.body.classList.add('mode-gym'); document.body.classList.remove('mode-shift');
+  }
+
+  // Countdown
+  const cd=document.getElementById('countdown');
+  const cnt=daysUntilChange(cur);
+  cd.textContent=cnt; cd.style.display=cnt?'':'none';
+
+  // Week strip — show gym days only if in gym mode
+  const mon=new Date(cur); mon.setDate(cur.getDate()-((cur.getDay()+6)%7));
+  let sh='';
+  for(let i=0;i<7;i++){
+    const d=addD(mon,i),iC=same(d,cur);
+    const dMode=getCurrentMode(d);
+    const iDayGym=dMode==='gym'&&GYM.includes(d.getDay());
+    const iDayShift=dMode==='shift';
+    const tag=iDayGym?TRAINS[trainIdx(d)].short:iDayShift?'вахта':'';
+    const stripColor=iDayShift?'rgba(230,126,34,.35)':'';
+    const cls=['dp',iC?'cur':(iDayGym?'gym':iDayShift?'shift-strip':'')].filter(Boolean).join(' ');
+    const diff=Math.round((d-td)/86400000);
+    sh+=`<div class="${cls}" style="${iDayShift&&!iC?'border-color:rgba(230,126,34,.3);background:rgba(230,126,34,.04)':''}" onclick="offset=${diff};render()">
+      <div class="dn">${DAYS[d.getDay()]}</div>
+      <div class="dd">${d.getDate()}</div>
+      <div class="dt" style="${iDayShift?'color:rgba(230,126,34,.7)':''}">${tag}</div>
+    </div>`;
+  }
+  document.getElementById('strip').innerHTML=sh;
+  renderGoals(); renderShop();
+
+  const grid=document.getElementById('mgrid');
+  const animClass = offset > lastOffset ? 'mgrid canim-r' : 'mgrid canim';
+  grid.className=animClass; void grid.offsetWidth;
+
+  const meals=getMealsForDay(cur);
+  const mac=isShift?{k:2100,p:120,f:65,c:240,fib:25}:isG?{k:2500,p:135,f:75,c:320,fib:35}:{k:2200,p:130,f:70,c:260,fib:30};
+  const mc=meals.map((m,i)=>`<div class="mcard" onclick="openM(${i})"><div class="mtime">${m.t}</div><div class="mfood">${m.f}</div><div class="mkcal">${m.k} ккал</div></div>`).join('');
+
+  if(isShift){
+    const vDay=getVakhtaTrainDay(cur);
+    const isTrainDay=vDay!==null;
+    const vakhta_A=[
+      {n:'Отжимания на стойках широко',s:'3×10–15'},{n:'Отжимания узким хватом',s:'3×10–12'},
+      {n:'Тяга резинки в наклоне двумя руками',s:'4×12–15'},{n:'Тяга резинки одной рукой ⚠',s:'3×12–15/ст'},
+      {n:'Разведение резинки в стороны',s:'3×15–20'},{n:'Тяга резинки к лицу (Face pull)',s:'3×15–20'},
+      {n:'Curl резинки на бицепс ⚠',s:'3×12–15/ст'},
+    ];
+    const vakhta_B=[
+      {n:'Приседания с резинкой',s:'4×15–20'},{n:'Ягодичный мостик с резинкой',s:'4×15–20'},
+      {n:'Ягодичный мостик на одной ноге ⚠',s:'3×12–15/ст'},{n:'Выпады на месте',s:'3×12–15/ногу'},
+      {n:'Отведение ноги в сторону лёжа',s:'3×15–20/ст'},{n:'Планка',s:'3×45–60с'},
+      {n:'Боковая планка ⚠',s:'3×30–40с/ст'},{n:'Dead bug',s:'3×8–10/ст'},
+    ];
+    const vEx=isTrainDay?(vDay==='A'?vakhta_A:vakhta_B):[];
+    const vColor=vDay==='A'?'#2E75B6':'#E67E22';
+    const trainBlock=isTrainDay
+      ?`<div class="pc tpanel" style="--tc:${vColor};cursor:pointer" onclick="openVakhtaModal('${vDay}')">
+          <div class="slbl">вахта — тренировка ${vDay} · нажми для деталей</div>
+          <div class="tname" style="color:${vColor}">${vDay==='A'?'Верх тела — резинки':'Ноги + кор — резинки'}</div>
+          <div class="mtags">${(vDay==='A'?['Грудь','Спина','Плечи','Руки']:['Ягодицы','Квадрицепс','Кор']).map(m=>`<span class="mtag">${m}</span>`).join('')}</div>
+          <div>${vEx.map(e=>`<div class="exrow"><div class="edot" style="background:${vColor}"></div><span>${e.n}</span><span class="esets">${e.s}</span></div>`).join('')}</div>
+          <div class="tpanel-hint">&#9432; Нажми — разминка, техника, заминка</div>
+        </div>`
+      :`<div class="pc rp-block"><div class="rtitle" style="color:#EF9F27">🏕 Вахта — отдых</div><div class="rsub">PRI утром · восстановление · прогулка</div></div>`;
+    grid.innerHTML=`
+      ${trainBlock}
+      <div class="pc"><div class="slbl">задачи на неделю</div>${renderMainTasks()}</div>
+      <div class="pc mfull"><div class="slbl">питание на вахте — нажми для деталей →</div><div class="mgrd">${mc}</div>
+        <div class="macrow"><div class="mac"><div class="mv">${mac.k}</div><div class="ml">ккал</div></div><div class="mac"><div class="mv">${mac.p}г</div><div class="ml">белок</div></div><div class="mac"><div class="mv">${mac.f}г</div><div class="ml">жиры</div></div><div class="mac"><div class="mv">${mac.c}г</div><div class="ml">углев.</div></div><div class="mac"><div class="mv">${mac.fib}г</div><div class="ml">клетч.</div></div></div>
+      </div>`;
+  } else if(isG){
+    const ti=trainIdx(cur),t=TRAINS[ti];
+    const er=t.exercises.map(e=>`<div class="exrow"><div class="edot" style="background:${t.color}"></div><span>${e.n}</span><span class="esets">${e.s}</span></div>`).join('');
+    const mt=t.muscles.map(m=>`<span class="mtag">${m}</span>`).join('');
+    const tr=t.tips.map(tip=>`<div class="trow"><span class="ti">${tip.i}</span><span class="tt">${tip.t}</span></div>`).join('');
+    grid.innerHTML=`
+      <div class="pc tpanel" style="--tc:${t.color}" onclick="openTrainModal(${ti})">
+        <div class="slbl">тренировка — нажми для деталей</div>
+        <div class="tname">${t.name}</div>
+        <div class="mtags">${mt}</div>
+        <div>${er}</div>
+        <div class="tpanel-hint">&#9432; Нажми чтобы открыть описание упражнений</div>
+      </div>
+      <div class="pc"><div class="slbl">задачи на неделю</div>${renderMainTasks()}</div>
+      <div class="pc mfull"><div class="slbl">питание — нажми для деталей →</div><div class="mgrd">${mc}</div>
+        <div class="macrow"><div class="mac"><div class="mv">${mac.k}</div><div class="ml">ккал</div></div><div class="mac"><div class="mv">${mac.p}г</div><div class="ml">белок</div></div><div class="mac"><div class="mv">${mac.f}г</div><div class="ml">жиры</div></div><div class="mac"><div class="mv">${mac.c}г</div><div class="ml">углев.</div></div><div class="mac"><div class="mv">${mac.fib}г</div><div class="ml">клетч.</div></div></div>
+      </div>`;
+  } else {
+    const tr=[{i:'🍽',t:'Чуть меньше углеводов (260г). Белок держи 130г.'},{i:'💻',t:'Chin tuck каждые 1–2 часа.'},{i:'🧘',t:'PRI утром: 90/90 crossover + Adductor pullback.'}].map(tip=>`<div class="trow"><span class="ti">${tip.i}</span><span class="tt">${tip.t}</span></div>`).join('');
+    grid.innerHTML=`
+      <div class="pc rp-block"><div class="rtitle">Отдых</div><div class="rsub">PRI утром · chin tuck · лёгкая активность</div></div>
+      <div class="pc"><div class="slbl">задачи на неделю</div>${renderMainTasks()}</div>
+      <div class="pc mfull"><div class="slbl">питание — нажми для деталей →</div><div class="mgrd">${mc}</div>
+        <div class="macrow"><div class="mac"><div class="mv">${mac.k}</div><div class="ml">ккал</div></div><div class="mac"><div class="mv">${mac.p}г</div><div class="ml">белок</div></div><div class="mac"><div class="mv">${mac.f}г</div><div class="ml">жиры</div></div><div class="mac"><div class="mv">${mac.c}г</div><div class="ml">углев.</div></div><div class="mac"><div class="mv">${mac.fib}г</div><div class="ml">клетч.</div></div></div>
+      </div>`;
+  }
+}
+
+loadState(); loadProgState();
+tick(); setInterval(tick,30000); render();
+</script>
+</body>
+</html>
